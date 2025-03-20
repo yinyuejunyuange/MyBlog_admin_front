@@ -25,6 +25,11 @@ const routes = [
                 path:"blogManger",
                 name:'BlogMangerPage',
                 component:()=>import('@/components/manage/blogManage/BlogManage.vue')
+            },
+            {
+                path:"taskManage",
+                name:"TaskManagePage",
+                component:()=>import('@/components/manage/AnnouncementTaskManage/TaskManage.vue')
             }
         ]
     },

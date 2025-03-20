@@ -27,7 +27,9 @@
           </el-menu-item>
           <el-collapse v-if="activeMenu=== item.menuName ">
             <el-menu-item v-for="(items,index_s) in item.children"
-            :index="items.url">{{items.menuName}}</el-menu-item>
+                          :index="items.url"
+                          @click="toggleChrMenu(items)"
+            >{{items.menuName}}</el-menu-item>
           </el-collapse>
         </div>
       </el-menu>
@@ -118,6 +120,19 @@ const toggleSubMenu = (menu) => {
   }
 };
 
+const toggleChrMenu =(menu)=>{
+  if(menu===null){
+    activeMenu.value='';
+    router.push("/");
+    return
+  }else{
+    activeMenu.value = menu.menuName;
+  }
+  if(menu.menuUrl!==null){
+    console.info(menu.menuUrl);
+    router.push(menu.menuUrl);
+  }
+}
 
 </script>
 
