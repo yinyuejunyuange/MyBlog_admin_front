@@ -1,7 +1,7 @@
 <template>
   <div>
     <div>
-      <el-form :model="form" label-width="120px" style="max-width: 1000px;">
+      <el-form :model="form" label-width="120px" style="max-width: 1200px;">
         <el-row :gutter="20">
           <el-col :span="6">
             <el-form-item label="任务名称">
@@ -36,9 +36,10 @@
           <el-col :span="6">
             <el-form-item label="状态">
               <el-select v-model="form.status" placeholder="选择状态">
-                <el-option label="执行中" value="执行中"></el-option>
+                <el-option label="正常" value="正常"></el-option>
                 <el-option label="暂停" value="暂停"></el-option>
-                <el-option label="终止" value="删除"></el-option>
+                <el-option label="不存在或者已清除" value="不存在或者已清除"></el-option>
+                <el-option label="异常" value="异常"></el-option>
               </el-select>
             </el-form-item>
           </el-col>
@@ -52,9 +53,9 @@
             </el-form-item>
 
             <el-button @click="openDialog" type="primary" >新增</el-button>
-            <el-button @click="reset" type="warning">暂停</el-button>
-            <el-button @click="reset" type="danger">终止</el-button>
-            <el-button @click="deleteSelected" type="danger">删除</el-button>
+            <el-button @click="stopBatch" type="warning">暂停</el-button>
+            <el-button @click="deleteBatch" type="danger">终止</el-button>
+            <el-button @click="deleteTaskRecordBatch" type="danger">删除任务记录</el-button>
           </el-col>
         </el-row>
       </el-form>
@@ -121,6 +122,14 @@
               :disabled="row.status === '不存在或者已清除'">
             查看任务详情
           </el-button>
+
+          <el-button
+              type="text"
+              size="small"
+              @click="deleteTaskRecord(row.id)">
+            删除任务记录
+          </el-button>
+
         </template>
       </el-table-column>
 
@@ -381,6 +390,7 @@ import Sidebar from "@/components/sidebar/Sidebar.vue";
 import axios from 'axios';
 import {ElMessage} from "element-plus";
 import Layout from "@/components/layout/Layout.vue";
+import qs from 'qs'
 
 
 const form = ref({
@@ -411,7 +421,7 @@ const newTask=ref({
   weekdays: [],
   hour: '',
   minute:'*',
-  second:'*',
+  second:'0/5',
   status: '',
   type:''
 })
@@ -458,8 +468,8 @@ const getUserInfoList=async ()=>{
     params: {
       adminName: form.value.adminName,
       taskName: form.value.taskName,
-      startDate: form.value.startDate!==null?new Date(form.value.startDate):null,
-      endDate: form.value.endDate!==null?new Date(form.value.endDate):null,
+      startTime: form.value.startDate!==null?new Date(form.value.startDate):null,
+      endTime: form.value.endDate!==null?new Date(form.value.endDate):null,
       status: form.value.status,
       currentPage: currentPage.value,
     }
@@ -516,13 +526,88 @@ const deleteSelected = () => {
   // this.$message.success('已删除选中用户');
 };
 
-const deleteUser= async (userId)=>{
-  const response=await axios.delete("http://localhost:8080/admin/deleteUser",{
+
+const stopBatch=async ()=>{
+  let params=ref([])
+  selectTable.value.forEach(i=>{
+    params.value.push(i.id)
+  })
+  const response=await axios.put("http://localhost:8080/admin/task/stopTaskBatch", {}, {
+    params: {
+      taskIds: selectTable.value
+    },
+    headers: {
+      token: localStorage.getItem('token')
+    },
+    paramsSerializer: params => {
+      return qs.stringify(params, {indices: false})
+    }
+  })
+  if(response.data.code===200){
+    await getUserInfoList()
+  }else{
+    ElMessage.error(response.data.msg)
+  }
+
+}
+
+const deleteBatch=async ()=>{
+  let params=ref([])
+  selectTable.value.forEach(i=>{
+    params.value.push(i.id)
+  })
+  const response=await axios.put("http://localhost:8080/admin/task/deleteTaskBatch", null, {
+    params: {
+      taskIds: params.value
+    },
+    headers: {
+      token: localStorage.getItem('token')
+    },
+    paramsSerializer: params => {
+      return qs.stringify(params, {indices: false})
+    }/* 避免数组出现异常*/
+  })
+  if(response.data.code===200){
+    await getUserInfoList()
+  }else{
+    ElMessage.error(response.data.msg)
+  }
+
+}
+
+
+const deleteTaskRecordBatch=async ()=>{
+  let params=ref([])
+  selectTable.value.forEach(i=>{
+    params.value.push(i.id)
+  })
+  const response=await axios.delete("http://localhost:8080/admin/task/deleteTaskRecordBatch",{
+    params: {
+      taskIds: params.value
+    },
+    headers: {
+      token: localStorage.getItem('token')
+    },
+    paramsSerializer: params => {
+      return qs.stringify(params, {indices: false})
+    }
+  })
+  if(response.data.code===200){
+    await getUserInfoList()
+  }else{
+    ElMessage.error(response.data.msg)
+  }
+
+}
+
+
+const deleteUser= async (Id)=>{
+  const response=await axios.delete("http://localhost:8080/admin/task/deleteTask",{
     headers:{
       token: localStorage.getItem('token')
     },
     params:{
-      userId: userId
+      taskId: Id
     }
   })
   if(response.data.code===200){
@@ -536,11 +621,25 @@ const deleteUser= async (userId)=>{
 const openDialog=()=> {
   dialogVisible.value = true;
 }
+const deleteTaskRecord=async (id)=>{
+  const response= await axios.delete("http://localhost:8080/admin/task/deleteTaskRecord",{
+    params: {
+      taskId: id
+    },
+    headers:{
+      token: localStorage.getItem('token')
+    }
+  })
+
+  if(response.data.code===200){
+    await getUserInfoList()
+  }else{
+    ElMessage.error(response.data.msg)
+  }
+}
 
 const addTask= async ()=>{
   console.info(newTask.value)
-
-
   let year=newTask.value.year
   if(!year.toString().replace(/[^0-9*]/g,'')){
     ElMessage.error("年份输入不正确")

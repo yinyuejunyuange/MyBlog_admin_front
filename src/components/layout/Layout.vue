@@ -68,6 +68,8 @@ import {ElMessage} from "element-plus";
 import {useRouter} from "vue-router";
 const router = useRouter()
 
+
+
 const item = {
   date: '2016-05-02',
   name: '王小虎',
@@ -121,13 +123,13 @@ const toggleSubMenu = (menu) => {
 };
 
 const toggleChrMenu =(menu)=>{
-  if(menu===null){
-    activeMenu.value='';
-    router.push("/");
-    return
-  }else{
-    activeMenu.value = menu.menuName;
-  }
+  // if(menu===null){
+  //   activeMenu.value='';
+  //   router.push("/");
+  //   return
+  // }else{
+  //   activeMenu.value = menu.menuName;
+  // }
   if(menu.menuUrl!==null){
     console.info(menu.menuUrl);
     router.push(menu.menuUrl);

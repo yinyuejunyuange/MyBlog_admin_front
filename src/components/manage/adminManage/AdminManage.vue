@@ -4,22 +4,32 @@
       <el-form :model="form" label-width="120px" style="max-width: 1200px;">
         <el-row :gutter="20">
           <el-col :span="6">
-            <el-form-item label="公告标题">
-              <el-input v-model="form.title" placeholder="公告标题" />
+            <el-form-item label="管理员名称">
+              <el-input v-model="form.name" placeholder="管理员名称" />
             </el-form-item>
           </el-col>
 
           <el-col :span="6">
-            <el-form-item label="任务名称">
-              <el-input v-model="form.taskName" placeholder="任务名称" />
+            <el-form-item label="手机号">
+              <el-input v-model="form.phone" placeholder="手机号" />
             </el-form-item>
           </el-col>
 
           <el-col :span="6">
-            <el-form-item label="创建者名称或手机号">
-              <el-input v-model="form.adminName" placeholder="创建者名称或手机号" />
+            <el-form-item label="管理员类型">
+              <el-select v-model="form.adminType" placeholder="选择类型">
+                <el-option label="admin" value="admin"></el-option>
+                <el-option label="super_admin" value="super_admin"></el-option>
+              </el-select>
             </el-form-item>
           </el-col>
+
+          <el-col :span="6">
+            <el-form-item label="创建者">
+              <el-input v-model="form.createBy" placeholder="创建者" />
+            </el-form-item>
+          </el-col>
+
           <el-col :span="6">
             <el-form-item label="起始日期">
               <el-date-picker
@@ -41,6 +51,15 @@
           </el-col>
         </el-row>
 
+        <el-col :span="6">
+          <el-form-item label="状态">
+            <el-select v-model="form.isFreeze" placeholder="选择状态">
+              <el-option label="冻结" value="1"></el-option>
+              <el-option label="未冻结" value="2"></el-option>
+            </el-select>
+          </el-form-item>
+        </el-col>
+
         <el-row>
           <el-col>
             <el-form-item>
@@ -48,8 +67,8 @@
               <el-button @click="reset">重置</el-button>
             </el-form-item>
 
-            <el-button @click="openDialog" type="primary" >新增</el-button>
-            <el-button @click="deleteBatch" type="danger">删除</el-button>
+                        <el-button @click="openDialog" type="primary" >新增管理员</el-button>
+            <!--            <el-button @click="deleteBatch" type="danger">删除</el-button>-->
           </el-col>
         </el-row>
       </el-form>
@@ -59,43 +78,47 @@
               @selection-change="handleSelectChange"
     >
 
-      <el-table-column type="selection" width="55" />
+      <!--      <el-table-column type="selection" width="55" />-->
 
       <el-table-column prop="id" label="ID" width="120" />
-      <el-table-column prop="title" label="公告名称" width="200" />
-      <el-table-column prop="adminName" label="创建者名称" width="200" />
-      <el-table-column prop="taskName" label="关联任务名称" width="200" />
+      <el-table-column prop="name" label="管理员姓名" width="200" />
+      <el-table-column prop="imageUrl" label="头像" width="200" >
+        <template #default="{ row }">
+          <img :src="row.imageUrl" alt="User Avatar" class="userHead" />
+        </template>
+
+      </el-table-column>
+      <el-table-column prop="phone" label="手机号" width="200" />
+      <el-table-column prop="email" label="邮箱" width="200" />
       <el-table-column label="创建日期" width="200">
         <template #default="{ row }">
           {{ formatDate(row.createTime) }}
         </template>
       </el-table-column>
+      <el-table-column prop="createBy" label="创建者" width="200" />
       <el-table-column label="修改日期" width="200">
         <template #default="{ row }">
           {{ formatDate(row.updateTime) }}
         </template>
       </el-table-column>
+      <el-table-column prop="updateBy" label="修改者" width="200" />
+      <el-table-column  label="状态" width="200" >
+        <template #default="{ row }">
+          <el-select v-model="row.isFreeze" placeholder="选择状态" @change="handleStatusChange(row)">
+            <el-option label="冻结" value="1"></el-option>
+            <el-option label="未冻结" value="2"></el-option>
+          </el-select>
+        </template>
+      </el-table-column>
+      <el-table-column prop="adminType" label="管理员类型" width="200" />
       <el-table-column label="操作" width="250">
         <template #default="{ row }">
 
           <el-button
               size="small"
-              type="text"
-              @click="modifyVisible(row)"
-              :disabled="row.status === '不存在或者已清除'||row.status === '正常'">
-            修改
-          </el-button>
-          <el-button
-              size="small"
               type="danger"
-              @click="deleteAnnounce(row.id)"
-              :disabled="row.status === '不存在或者已清除'">
+              @click="deleteComment(row.id)">
             删除
-          </el-button>
-          <el-button
-              size="small"
-              :disabled="row.status === '不存在或者已清除'">
-            查看公告详情
           </el-button>
 
         </template>
@@ -111,13 +134,25 @@
         style="margin-top: 20px;"
     />
 
-    <el-dialog title="新增公告" v-model="dialogVisible">
+
+
+    <el-dialog title="新增管理员" v-model="dialogVisible">
       <el-form :model="newTask" label-width="120px">
-        <el-form-item label="公告标题">
-          <el-input v-model="newTask.title" placeholder="公告标题" />
+        <el-form-item label="姓名">
+          <el-input v-model="newTask.name" placeholder="姓名" />
         </el-form-item>
-        <el-form-item label="公告内容">
-          <el-input type="textarea" v-model="newTask.content" placeholder="公告内容" />
+        <el-form-item label="手机号">
+          <el-input  v-model="newTask.phone" placeholder="手机号" />
+        </el-form-item>
+        <el-form-item label="邮箱">
+          <el-input  v-model="newTask.email" placeholder="邮箱" />
+        </el-form-item>
+
+        <el-form-item label="管理员类型">
+          <el-select v-model="newTask.adminType" placeholder="选择类型">
+            <el-option label="admin" value="admin"></el-option>
+            <el-option label="super_admin" value="super_admin"></el-option>
+          </el-select>
         </el-form-item>
       </el-form>
       <span slot="footer" class="dialog-footer">
@@ -126,44 +161,31 @@
         </span>
     </el-dialog>
 
-
-    <el-dialog title="修改任务" v-model="updateDialogVisible">
-      <el-form :model="updateTask" label-width="120px">
-        <el-form-item label="公告标题">
-          <el-input v-model="updateTask.title" placeholder="公告标题" />
-        </el-form-item>
-        <el-form-item label="公告内容">
-          <el-input type="textarea" v-model="updateTask.content" placeholder="公告内容" />
-        </el-form-item>
-      </el-form>
+    <el-dialog title="新管理员的密码" v-model="updateDialogVisible">
+      <h3>{{passwords}}</h3>
       <span slot="footer" class="dialog-footer">
-          <el-button @click="updateDialogVisible = false">取 消</el-button>
-          <el-button type="primary" @click="modifyAnnouncement">确 定</el-button>
+          <el-button @click="updateDialogVisible = false">确 定</el-button>
         </span>
     </el-dialog>
-
 
   </div>
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue';
-import * as echarts from 'echarts';
-import Navigation from "@/navigation/Navigation.vue";
-import Sidebar from "@/components/sidebar/Sidebar.vue";
+import {onMounted, ref} from 'vue';
 import axios from 'axios';
 import {ElMessage} from "element-plus";
-import Layout from "@/components/layout/Layout.vue";
-import qs from 'qs'
+import JSEncrypt from 'jsencrypt';
 
 
 const form = ref({
-  title: '',
-  adminName: '',
-  taskName:'',
+  name: '',
+  phone: '',
+  adminType: '',
+  createBy: '',
   startDate: null,
   endDate: null,
-  status: ''
+  isFreeze: ''
 });
 
 const currentPage=ref(1)
@@ -177,20 +199,17 @@ const selectTable=ref([])
 const dialogVisible=ref(false)
 const updateDialogVisible=ref(false)
 const newTask=ref({
-  taskName: '',
-  title: '',
-  content: '',
-  type:''
+  name: '',
+  phone: '',
+  email: '',
+  adminType:''
 })
 
 const updateTask=ref({
-  announcementId:'',
-  taskName: '',
-  title: '',
-  content: '',
-  type:''
+  context: '',
 })
 
+const passwords=ref('')
 
 onMounted(async()=>{
 
@@ -210,25 +229,50 @@ function formatDate(isoString) {
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
 
-const getUserInfoList=async ()=>{
-
-  const response= await axios.get("http://localhost:8080/admin/task/getAnnouncementAdmin", {
+const handleStatusChange= async(row)=>{
+  const response= await axios.put("http://localhost:8080/admin/manager//updateAdmin", null,{
     headers: {
       token: localStorage.getItem("token"),
     },
     params: {
-      adminName: form.value.adminName,
-      title: form.value.title,
-      taskName: form.value.taskName,
+      adminId:row.id,
+      isFreeze:row.isFreeze
+    }
+  })
+  if(response.data.code===200){
+    ElMessage.success(response.data.msg)
+  }else{
+    ElMessage.error("查询 失败")
+  }
+}
+
+const getUserInfoList=async ()=>{
+
+  const response= await axios.get("http://localhost:8080/admin/manager/getManagers", {
+    headers: {
+      token: localStorage.getItem("token"),
+    },
+    params: {
+      name: form.value.name,
+      phone: form.value.phone,
+      adminType: form.value.adminType,
+      createBy: form.value.createBy,
       startTime: form.value.startDate!==null?new Date(form.value.startDate):null,
       endTime: form.value.endDate!==null?new Date(form.value.endDate):null,
-
+      isFreeze:form.value.isFreeze,
       currentPage: currentPage.value,
     }
   })
 
   if(response.data.code===200){
-    filteredUsers.value=response.data.data.pageList
+    filteredUsers.value=response.data.data.pageList.map(i=>{
+      return {
+        ...i,
+        createBy: i.createBy===null?'无':i.createBy,
+        updateBy: i.updateBy===null?'无':i.updateBy,
+        isFreeze:i.isFreeze===1?'冻结':'未冻结',
+      }
+    })
     totalUsers.value=response.data.data.total
     currentPage.value=response.data.data.pageNow
     pageSize.value=response.data.data.pageSize
@@ -274,7 +318,6 @@ const deleteTaskRecord=async (id)=>{
       token: localStorage.getItem('token')
     }
   })
-
   if(response.data.code===200){
     await getUserInfoList()
   }else{
@@ -283,27 +326,13 @@ const deleteTaskRecord=async (id)=>{
 }
 
 
-
-
-let rows=ref({})
-
-const modifyVisible=(row)=>{
-  updateDialogVisible.value = true
-
-  updateTask.value.announcementId=row.id
-  updateTask.value.taskName=row.taskName
-  updateTask.value.title=row.title
-  updateTask.value.content=row.content
-
-  rows=row
-
-}
-
 const addAnnouncement=async()=>{
 
-  const response=await axios.post("http://localhost:8080/admin/task/addAnnouncement",{
-    title: newTask.value.title,
-    content: newTask.value.content,
+  const response=await axios.post("http://localhost:8080/admin/manager/addAdmin",{
+    name: newTask.value.name,
+    phone: newTask.value.phone,
+    email: newTask.value.email,
+    adminType: newTask.value.adminType,
   } ,{
     headers:{
       token:localStorage.getItem('token'),
@@ -312,68 +341,39 @@ const addAnnouncement=async()=>{
 
   if(response.data.code===200){
     ElMessage.success("添加成功")
+
+    const privateKey=response.data.data.privateKey;
+    const keyWord=response.data.data.keyWord;
+
+    passwords.value=decryptMessage(privateKey,keyWord)
+
+    console.info(passwords.value)
+
     await getUserInfoList()
     dialogVisible.value=false
+    updateDialogVisible.value=true;
+
 
   }else{
     ElMessage.error(response.data.msg)
   }
 }
 
-const modifyAnnouncement=async()=>{
-  const response=await axios.post("http://localhost:8080/admin/task/updateAnnouncement",{
-    announcementId: updateTask.value.announcementId,
-    title: updateTask.value.title,
-    content: updateTask.value.content
-  },{
-    headers:{
-      token:localStorage.getItem('token')
-    }
-  })
 
-  if(response.data.code===200){
-    ElMessage.success("修改成功")
-    updateDialogVisible.value=false;
-    await getUserInfoList()
-  }else{
-    ElMessage.error("修改失败")
-  }
-
+const decryptMessage=(privateWords,keyWords)=> {
+  const jsEncrypt = new JSEncrypt();
+  jsEncrypt.setPrivateKey(privateWords)
+  return jsEncrypt.decrypt(keyWords)
 }
 
-const deleteBatch=async()=>{
-  let params=ref([])
-  selectTable.value.forEach(i=>{
-    params.value.push(i.id)
-  })
-  const response=await axios.delete("http://localhost:8080/admin/task/deleteAnnouncementBatch",{
+const deleteComment=async(id)=>{
+
+  const response=await axios.delete("http://localhost:8080/admin/manager/deleteAdmin",{
     headers:{
       token: localStorage.getItem('token')
     },
     params:{
-      removeIds: params.value
-    },
-    paramsSerializer: params => {
-      return qs.stringify(params, {indices: false})
-    }
-  })
-
-  if(response.data.code===200){
-    ElMessage.success("删除成功")
-    await getUserInfoList()
-  }else{
-    ElMessage.error("删除失败")
-  }
-}
-
-const deleteAnnounce=async(id)=>{
-
-  const response=await axios.delete("http://localhost:8080/admin/task/deleteAnnouncement",{
-    headers:{
-      token: localStorage.getItem('token')
-    },
-    params:{
-      removeId: id
+      adminId: id
     }
   })
 
@@ -393,3 +393,4 @@ const deleteAnnounce=async(id)=>{
   width: 50px;
 }
 </style>
+
