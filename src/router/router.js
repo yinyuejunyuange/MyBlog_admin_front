@@ -57,6 +57,22 @@ const routes = [
                 path:'menuManage',
                 name:'MenuManage',
                 component:()=>import('@/components/manage/menuManage/MenuManage.vue')
+            },{
+                path:'blogReportManage',
+                name:'BlogReportManage',
+                component:()=>import('@/components/manage/reportManage/BlogReportManage.vue')
+            },{
+                path:'commentReportManage',
+                name:'CommentReportManage',
+                component:()=>import('@/components/manage/reportManage/CommentReportManage.vue')
+            },{
+                path:'replyReportManage',
+                name:'ReplyReportManage',
+                component:()=>import('@/components/manage/reportManage/ReplyReportManage.vue')
+            },{
+                path:'userReportManage',
+                name:'UserReportManage',
+                component:()=>import('@/components/manage/reportManage/UserReportManage.vue')
             }
         ]
     },
