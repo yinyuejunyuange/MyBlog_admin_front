@@ -1,0 +1,8 @@
+@import "tailwindcss";
+
+@font-face {
+    font-family: 'iconfont';
+    src: url('//at.alicdn.com/t/c/font_5109692_z3evi5csyd8.woff2') format('woff2'),
+    url('//at.alicdn.com/t/c/font_5109692_z3evi5csyd8.woff') format('woff'),
+    url('//at.alicdn.com/t/c/font_5109692_z3evi5csyd8.ttf') format('truetype');
+}

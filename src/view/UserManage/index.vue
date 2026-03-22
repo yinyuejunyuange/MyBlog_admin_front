@@ -1,0 +1,535 @@
+<template>
+  <div class="p-6">
+    <DataTable
+        :search-schema="mySearchConfig"
+        :columns="myTableColumns"
+        :table-data="listData"
+        @search="onSearch"
+    >
+
+      <template #userHead="{ value }">
+        <el-avatar :size="28" :src="value" />
+      </template>
+
+      <template #isUserFreeze="{ value }">
+        <el-tag :type="value === 0 ? 'success' : 'danger'" effect="light">
+          {{ statusMap[value] }}
+        </el-tag>
+      </template>
+
+      <template #actions="{ row }">
+        <el-button link type="primary" size="small" @click="openDetail">详情</el-button>
+        <el-button v-if="row.isUserFreeze === 0" link type="danger" size="small">冻结</el-button>
+        <el-button v-else-if="row.isUserFreeze === 1" link type="danger" size="small">解冻</el-button>
+      </template>
+    </DataTable>
+  </div>
+
+  <el-dialog
+      v-model="userVisible"
+      title="用户详情"
+      width="70%"
+      destroy-on-close
+      align-center
+      class="glass-dialog"
+  >
+    <div class="p-4 space-y-6 max-h-[80vh] overflow-y-auto custom-scrollbar">
+
+      <div class="glass-card-inner p-8 flex flex-col md:flex-row gap-8 items-center">
+        <div class="relative">
+          <el-avatar :size="100" :src="userDetail.userHead" class="shadow-xl border-4 border-white" />
+          <div
+              v-if="userDetail.isUserFreeze === 1"
+              class="absolute -bottom-2 -right-2 bg-red-500 text-white text-[10px] px-2 py-1 rounded-full shadow-lg"
+          >
+            已封禁
+          </div>
+        </div>
+
+        <div class="flex-1 text-center md:text-left space-y-2">
+          <div class="flex items-center justify-center md:justify-start gap-3">
+            <h2 class="text-2xl font-bold text-slate-800">{{ userDetail.userName }}</h2>
+            <span class="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded">ID: {{ userDetail.id }}</span>
+          </div>
+          <p class="text-slate-500 italic text-sm">“ {{ userDetail.introduction || '这个用户很懒，什么都没有留下' }} ”</p>
+          <div class="text-xs text-slate-400">
+            注册时间：{{ formatDate(userDetail.createTime) }}
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="glass-card-inner p-5 flex flex-col items-center justify-center border-b-2 border-blue-400">
+          <div class="text-blue-500 mb-1"><i class="el-icon-document"></i> 创作总量</div>
+          <div class="text-2xl font-bold text-slate-700">{{ userDetail.blogCount }}</div>
+        </div>
+
+        <div class="glass-card-inner p-5 flex flex-col items-center justify-center border-b-2 border-indigo-400">
+          <div class="text-indigo-500 mb-1">社交互动</div>
+          <div class="text-2xl font-bold text-slate-700">{{ userDetail.comRepCount }}</div>
+        </div>
+
+        <div class="glass-card-inner p-5 flex flex-col items-center justify-center border-b-2 border-orange-400">
+          <div class="text-orange-500 mb-1">违规次数</div>
+          <div class="text-2xl font-bold text-slate-700">{{ userDetail.toxicCount }}</div>
+        </div>
+
+        <div class="glass-card-inner p-5 flex flex-col items-center justify-center border-b-2"
+             :class="userDetail.toxicRate > 5 ? 'border-red-400' : 'border-emerald-400'">
+          <div :class="userDetail.toxicRate > 5 ? 'text-red-500' : 'text-emerald-500'" class="mb-1">内容违规率</div>
+          <div class="text-2xl font-bold text-slate-700">{{ userDetail.toxicRate }}%</div>
+        </div>
+      </div>
+
+      <div class="glass-card-inner p-6">
+        <div class="flex items-center gap-2 mb-6">
+          <div class="w-1.5 h-4 bg-indigo-500 rounded-full"></div>
+          <span class="font-bold text-slate-700">近12个月创作热度</span>
+        </div>
+        <div ref="userCreationChartRef" class="w-full h-[320px]"></div>
+      </div>
+
+      <div class="glass-card-inner p-6">
+        <div class="flex items-center gap-2 mb-6">
+          <div class="w-1.5 h-4 bg-indigo-500 rounded-full"></div>
+          <span class="font-bold text-slate-700">用户的攻击性评论</span>
+        </div>
+        <DataTable
+            :show-search="false"
+            :show-page="false"
+            :columns="comRepColumns"
+            :table-data="comRepList"
+        >
+
+          <template #isVisible="{ value }">
+            <el-tag :type="value === 1 ? 'success' : 'danger'" effect="light">
+              {{ visibleMap[value] }}
+            </el-tag>
+          </template>
+
+          <template #isToxic="{ value }">
+            <el-tag :type="value === 0 ? 'success' : value === 1? 'warning':'danger' " effect="light">
+              {{ toxicMap[value] }}
+            </el-tag>
+          </template>
+
+          <template #actions="{ row }">
+            <el-button link type="primary" size="small" @click="openEditToxic">修改</el-button>
+            <el-button v-if="row.isVisible === 0" link type="danger" size="small">可见</el-button>
+            <el-button v-else-if="row.isVisible === 1" link type="danger" size="small">不可见</el-button>
+          </template>
+        </DataTable>
+      </div>
+
+    </div>
+
+    <template #footer>
+      <div class="flex justify-end gap-3 px-4">
+        <el-button round @click="userVisible = false">关闭</el-button>
+        <el-button
+            v-if="userDetail.isUserFreeze === 0"
+            type="danger"
+            plain
+            round
+            @click="handleFreeze"
+        >
+          冻结账号
+        </el-button>
+        <el-button
+            v-else
+            type="success"
+            plain
+            round
+            @click="handleUnfreeze"
+        >
+          解封账号
+        </el-button>
+      </div>
+    </template>
+  </el-dialog>
+  <el-dialog
+      v-model="editToxicVisible"
+      title="人工审核：攻击性判定"
+      width="450px"
+      append-to-body
+      class="glass-dialog-inner"
+  >
+    <div class="p-2">
+      <el-form :model="toxicForm" label-position="top">
+
+        <el-form-item label="违规等级判定">
+          <el-radio-group v-model="toxicForm.isToxic" class="grid grid-cols-3 gap-2 w-full">
+            <el-radio-button :label="0">无风险</el-radio-button>
+            <el-radio-button :label="1">冒犯性</el-radio-button>
+            <el-radio-button :label="2">攻击性</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
+
+        <el-collapse-transition>
+          <el-form-item v-if="toxicForm.isToxic > 0" label="违规类别 (可多选)" class="mt-4">
+            <div class="bg-slate-50/50 p-4 rounded-xl border border-slate-100">
+              <el-checkbox-group v-model="selectedMulTypes">
+                <div class="grid grid-cols-2 gap-y-3">
+                  <el-checkbox label="人身攻击" />
+                  <el-checkbox label="地域歧视" />
+                  <el-checkbox label="种族歧视" />
+                  <el-checkbox label="其他" />
+                </div>
+              </el-checkbox-group>
+            </div>
+          </el-form-item>
+        </el-collapse-transition>
+      </el-form>
+    </div>
+
+    <template #footer>
+      <div class="flex justify-end gap-2">
+        <el-button round @click="editToxicVisible = false">取消</el-button>
+        <el-button type="primary" round class="bg-indigo-500 border-none px-6" @click="submitToxicEdit">
+          确认修改
+        </el-button>
+      </div>
+    </template>
+  </el-dialog>
+
+</template>
+
+<script setup>
+
+import {ref, nextTick, onMounted} from 'vue'
+import * as echarts from 'echarts';
+import DataTable from "@/components/common/DataTable/index.vue"
+
+// 1. 定义搜索框配置
+const mySearchConfig = [
+  { label: '用户名称', prop: 'username', type: 'input', placeholder: '搜索关键词...' },
+  { label: '开始时间', prop: 'startTime', type: 'date' },
+  { label: '结束时间', prop: 'endTime', type: 'date' },
+  {
+    label: '是否冻结',
+    prop: 'isFreeze',
+    type: 'select',
+    options: [
+      { label: '冻结', value: 1 },
+      { label: '未冻结', value: 0 },
+    ]
+  },
+]
+
+// 2. 定义表格列配置
+const myTableColumns = [
+  { label: 'ID', prop: 'id', width: '80' },
+  { label: '用户名', prop: 'userName' },
+  { label: '用户头像', prop: 'userHead' },
+  { label: '用户创建时间', prop: 'createTime' },
+  { label: '博客数量', prop: 'blogCount' },
+  { label: '评论和回复数量', prop: 'comRepCount' },
+  { label: '攻击性评论数量', prop: 'toxicCount' },
+  { label: '攻击性评论占比', prop: 'toxicRate' },
+  { label: '是否冻结', prop: 'isUserFreeze' },
+  { label: '操作', prop: 'actions', width: '150' }
+]
+
+// 3. 模拟数据
+const listData = ref([
+  {
+    id: "1001",
+    userName: "张三",
+    userHead: "https://example.com/avatar/1001.jpg", // 示例头像地址
+    createTime: "2024-01-15 10:30:25", // 前端常用字符串格式，也可写 new Date('2024-01-15')
+    blogCount: 28, // 发布博客数
+    comRepCount: 156, // 评论/回复数
+    toxicCount: 3, // 违规言论数
+    toxicRate: 0.019, // 违规率（3/156≈0.019）
+    isUserFreeze: 0 // 0=未冻结
+  },
+  {
+    id: "1002",
+    userName: "李四",
+    userHead: "https://example.com/avatar/1002.jpg",
+    createTime: "2024-02-20 14:18:40",
+    blogCount: 12,
+    comRepCount: 89,
+    toxicCount: 12,
+    toxicRate: 0.135, // 违规率（12/89≈0.135）
+    isUserFreeze: 1 // 1=已冻结
+  },
+  {
+    id: "1003",
+    userName: "王五",
+    userHead: "https://example.com/avatar/1003.jpg",
+    createTime: "2024-03-05 09:05:12",
+    blogCount: 45,
+    comRepCount: 210,
+    toxicCount: 0,
+    toxicRate: 0.0,
+    isUserFreeze: 0
+  }
+])
+
+const onSearch = (params) => {
+  console.log('触发搜索，参数为：', params)
+  // 这里写请求后端 API 的逻辑
+}
+
+const userVisible = ref(false)
+
+const userDetail = ref({
+  id: "1001",
+  userName: "张三",
+  userHead: "https://example.com/avatar/1001.jpg", // 示例头像地址
+  introduction: "专注于前端开发与技术分享，喜欢记录日常开发中的踩坑经验和解决方案。", // 个人简介
+  createTime: "2024-01-15 10:30:25", // 注册时间
+  blogCount: 28, // 总博客数
+  comRepCount: 156, // 总评论/回复数
+  toxicCount: 3, // 违规言论数
+  toxicRate: 0.019, // 违规率（3/156≈0.019）
+  isUserFreeze: 0, // 未冻结
+  // 嵌套的12个月博客创作数据
+  blog12MonthDTO: {
+    // 近12个月（2025-03 到 2024-04）
+    monthList: [
+      "2025-03", "2025-02", "2025-01",
+      "2024-12", "2024-11", "2024-10",
+      "2024-09", "2024-08", "2024-07",
+      "2024-06", "2024-05", "2024-04"
+    ],
+    // 对应月份的博客数量（随机且贴合实际，总数匹配blogCount）
+    blogCountList: [1, 0, 3, 2, 4, 1, 5, 2, 3, 2, 2, 1],
+    totalBlogCount: 28 // 12个月总数和外层blogCount一致
+  }
+});
+
+const statusMap={
+  1:'冻结',
+  0:'正常'
+}
+
+const visibleMap={
+  1:'可见',
+  0:'不可见'
+}
+
+const toxicMap={
+  1:'冒犯',
+  2:'具有攻击性',
+  0:'无攻击性'
+}
+
+const openDetail = async() => {
+  userVisible.value = true
+  // 2. 关键：等待 DOM 更新
+  await nextTick()
+
+  // 3. 此时 ref 已经绑定到真实的 DOM 元素上了
+  initUserChart(userDetail.value.blog12MonthDTO)
+}
+
+const formatDate = (date) => {
+  if (!date) return '-';
+  return new Date(date).toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+const userCreationChartRef = ref(null);
+let myChart = null;
+
+const initUserChart = (data) => {
+  if (!userCreationChartRef.value) return;
+
+  // 如果实例已存在则销毁重绘
+  if (myChart) {
+    myChart.dispose();
+  }
+
+  myChart = echarts.init(userCreationChartRef.value);
+
+  const option = {
+    // 提示框配置
+    tooltip: {
+      trigger: 'axis',
+      backgroundColor: 'rgba(255, 255, 255, 0.9)',
+      borderWidth: 0,
+      textStyle: { color: '#64748b' },
+      extraCssText: 'box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); border-radius: 8px;',
+      formatter: '{b}月 : <b style="color:#6366f1">{c} 篇</b>'
+    },
+    grid: {
+      top: '10%',
+      left: '3%',
+      right: '4%',
+      bottom: '3%',
+      containLabel: true
+    },
+    xAxis: {
+      type: 'category',
+      // 对应 DTO 中的 monthList (例如: ["2023-01", "2023-02"...])
+      data: data.monthList || [],
+      boundaryGap: false,
+      axisLine: { lineStyle: { color: '#f1f5f9' } },
+      axisLabel: { color: '#94a3b8', fontSize: 11 }
+    },
+    yAxis: {
+      type: 'value',
+      splitLine: { lineStyle: { type: 'dashed', color: '#f1f5f9' } },
+      axisLabel: { color: '#94a3b8' }
+    },
+    series: [
+      {
+        name: '创作篇数',
+        type: 'line',
+        smooth: true, // 开启平滑曲线
+        showSymbol: false,
+        // 对应 DTO 中的 blogCountList
+        data: data.blogCountList || [],
+        lineStyle: {
+          width: 4,
+          color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
+            { offset: 0, color: '#818cf8' },
+            { offset: 1, color: '#6366f1' }
+          ])
+        },
+        // 面积渐变填充
+        areaStyle: {
+          opacity: 0.2,
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: '#6366f1' },
+            { offset: 1, color: '#ffffff' }
+          ])
+        },
+        // 数据点样式
+        itemStyle: { color: '#6366f1' },
+        // 标记最大/最小值
+        markPoint: {
+          symbol: 'pin',
+          symbolSize: 40,
+          data: [
+            { type: 'max', name: '最高峰' }
+          ],
+          label: { fontSize: 10, color: '#fff' }
+        }
+      }
+    ]
+  };
+  myChart.setOption(option);
+  // 响应式缩放
+  window.addEventListener('resize', () => myChart?.resize());
+};
+
+// 2. 定义表格列配置
+const comRepColumns = [
+  { label: 'ID', prop: 'id', width: '80' },
+  { label: '内容', prop: 'comment' },
+  { label: '类型', prop: 'type' ,width: '80'},
+  { label: '博客标题', prop: 'blogName' },
+  { label: '是否可见', prop: 'isVisible',width: '80' },
+  { label: '攻击类别', prop: 'mulType' },
+  { label: '是否具有攻击性', prop: 'isToxic',width: '80' },
+  { label: '操作', prop: 'actions', width: '150' }
+]
+
+const comRepList = ref([
+  {
+    id: "cr001",
+    comment: "这篇文章的观点太片面了，根本没考虑实际场景！",
+    type: "评论",
+    blogId: "blog001",
+    blogName: "2025年前端开发趋势分析",
+    isVisible: 1,
+    mulType: "",
+    isToxic: 0
+  },
+  {
+    id: "cr002",
+    comment: "你懂个啥？只会纸上谈兵，建议别乱写误导人",
+    type: "回复",
+    blogId: "blog001",
+    blogName: "2025年前端开发趋势分析",
+    isVisible: 0,
+    mulType: "人身攻击,言语冒犯",
+    isToxic: 1
+  },
+  {
+    id: "cr003",
+    comment: "垃圾文章，作者就是个傻子，浪费时间！",
+    type: "评论",
+    blogId: "blog002",
+    blogName: "Vue3+TS实战项目教程",
+    isVisible: 0,
+    mulType: "辱骂,人身攻击",
+    isToxic: 2
+  },
+  {
+    id: "cr004",
+    comment: "请问这个API的参数格式有示例吗？没看明白",
+    type: "回复",
+    blogId: "blog002",
+    blogName: "Vue3+TS实战项目教程",
+    isVisible: 1,
+    mulType: "",
+    isToxic: 0
+  },
+  {
+    id: "cr005",
+    comment: "就这水平还敢发教程？回家种地去吧",
+    type: "评论",
+    blogId: "blog003",
+    blogName: "React Hooks核心用法详解",
+    isVisible: 0,
+    mulType: "辱骂,职业攻击",
+    isToxic: 2
+  }
+]);
+
+const editToxicVisible = ref(false);
+const selectedMulTypes = ref([]); // 用于绑定多选框数组
+
+const toxicForm = ref({
+  id: '',
+  isToxic: 0,
+  mulType: ''
+});
+
+// 打开修改弹窗
+const openEditToxic = (row) => {
+  toxicForm.value.id = row.id;
+  toxicForm.value.isToxic = row.isToxic;
+
+  // 将后端逗号分隔字符串转为数组回显
+  selectedMulTypes.value = row.mulType ? row.mulType.split(',') : [];
+
+  editToxicVisible.value = true;
+};
+
+// 提交修改
+const submitToxicEdit = () => {
+  // 1. 如果选择“无风险”，自动清空类别
+  if (toxicForm.value.isToxic === 0) {
+    toxicForm.value.mulType = '';
+  } else {
+    // 2. 将数组转回逗号分隔字符串
+    toxicForm.value.mulType = selectedMulTypes.value.join(',');
+  }
+
+  console.log('提交给后端的 DTO:', toxicForm.value);
+
+  // TODO: 调用后端接口
+
+  ElMessage.success('审核判定已更新');
+  editToxicVisible.value = false;
+};
+
+onMounted(() => {
+
+})
+
+</script>
+
+<style scoped>
+
+</style>
