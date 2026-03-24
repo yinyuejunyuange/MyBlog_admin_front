@@ -5,13 +5,13 @@
       :table-data="knowledgeBaseList"
       :show-add="true"
       @search="onSearch"
-      @add="onAdd"
+      @add="openAdd"
   >
     <template #knowledgeIds="{value}">
       {{value.size || 0}}
     </template>
     <template #actions="{ row }">
-      <el-button link type="primary" size="small" >编辑</el-button>
+      <el-button link type="primary" size="small" @click="openEdit" >编辑</el-button>
       <el-button link type="danger" size="small" >删除</el-button>
     </template>
   </DataTable>
@@ -109,18 +109,18 @@
 </template>
 <script setup>
 import DataTable from "@/components/common/DataTable/index.vue";
-import {ref} from "vue";
+import {reactive, ref} from "vue";
 import {ElMessage} from "element-plus";
 
 // 2. 定义表格列配置
 const knowledgeBaseColumns = [
   { label: 'ID', prop: 'id', width: '80' },
-  { label: '图标', prop: 'icon' },
-  { label: '名称', prop: 'name' ,width: '80'},
-  { label: '描述', prop: 'description' ,width: '80'},
-  { label: '知识库数量', prop: 'knowledgeIds' ,width: '80'},
-  { label: '创建时间', prop: 'createTime' },
-  { label: '最近修改时间', prop: 'updateTime',width: '80' },
+  { label: '图标', prop: 'icon',width: '120' },
+  { label: '名称', prop: 'name' ,width: '140'},
+  { label: '描述', prop: 'description' ,width: '480'},
+  { label: '知识库数量', prop: 'knowledgeIds' ,width: '100'},
+  { label: '创建时间', prop: 'createTime',width: '200' },
+  { label: '最近修改时间', prop: 'updateTime',width: '200' },
   { label: '操作', prop: 'actions', width: '150' }
 ]
 const mySearchConfig = [

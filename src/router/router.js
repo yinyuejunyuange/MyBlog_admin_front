@@ -36,7 +36,32 @@ const routes = [
                 path:"/comRepManage",
                 name:'ComRepManage',
                 component: () => import('@/view/ComRepManage/index.vue'),
-            }
+            },
+            {
+                path:"/knowledgeBaseManage",
+                name:"KnowledgeBaseManage",
+                component: () => import('@/view/KnowledgeBaseManage/index.vue')
+            },
+            {
+                path:"/knowledgePointManage",
+                name:"KnowledgePointManage",
+                component: () => import('@/view/KnowledgePointManage/index.vue')
+            },
+            {
+                path:"/questionManage",
+                name:"QuestionManage",
+                component: () => import('@/view/QuestionManage/index.vue')
+            },
+            {
+                path:"/adminManage",
+                name:"AdminManage",
+                component: () => import('@/view/AdminManage/index.vue')
+            },
+            {
+                path:"/chatManage",
+                name:"ChatManage",
+                component: () => import('@/view/ChatManage/index.vue')
+            },
         ]
 
     }

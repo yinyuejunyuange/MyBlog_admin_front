@@ -1,8 +1,12 @@
 <template>
   <div class="space-y-4">
-    <div  v-if="showSearch" class="bg-white/70 backdrop-blur-md p-4 rounded-xl border border-white/40 shadow-sm flex flex-wrap gap-4 items-end">
-      <div  v-for="item in searchSchema" :key="item.prop" class="flex flex-col gap-1.5">
+    <div
+        v-if="showSearch"
+        class="bg-white/70 backdrop-blur-md p-4 rounded-xl border border-white/40 shadow-sm flex flex-wrap gap-4 items-end"
+    >
+      <div v-for="item in searchSchema" :key="item.prop" class="flex flex-col gap-1.5">
         <label class="text-xs font-bold text-slate-500 ml-1">{{ item.label }}</label>
+
         <el-input
             v-if="item.type === 'input'"
             v-model="searchData[item.prop]"
@@ -41,9 +45,11 @@
         <el-button @click="resetSearch">重置</el-button>
       </div>
     </div>
+
     <div class="flex gap-2" v-if="showAdd">
-      <el-button type="primary" @click="handleAdd" >+新增</el-button>
+      <el-button type="primary" @click="handleAdd">+新增</el-button>
     </div>
+
     <div class="bg-white/70 backdrop-blur-md p-4 rounded-xl border border-white/40 shadow-sm">
       <el-table :data="tableData" style="width: 100%" v-loading="loading">
         <el-table-column
@@ -64,9 +70,14 @@
 
       <div class="mt-4 flex justify-end" v-if="showPage">
         <el-pagination
-            layout="total, prev, pager, next"
+            v-model:current-page="currentPageModel"
+            v-model:page-size="pageSizeModel"
+            layout="total, sizes, prev, pager, next, jumper"
             :total="total"
+            :page-sizes="pageSizes"
             background
+            @current-change="handleCurrentChange"
+            @size-change="handleSizeChange"
         />
       </div>
     </div>
@@ -74,51 +85,112 @@
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue'
+import {computed, reactive, ref, watch} from 'vue'
 import { Search } from '@element-plus/icons-vue'
 
 const props = defineProps({
-  // 搜索配置
   searchSchema: { type: Array, default: () => [] },
-  // 表格列配置
   columns: { type: Array, default: () => [] },
-  // 表格数据
   tableData: { type: Array, default: () => [] },
   loading: { type: Boolean, default: false },
   total: { type: Number, default: 0 },
   showPage: { type: Boolean, default: true },
   showSearch: { type: Boolean, default: true },
   showAdd: { type: Boolean, default: false },
+  pageSizes: { type: Array, default: () => [10, 20, 50, 100] },
+  currentPage: { type: Number, default: 1 },
+  pageSize: { type: Number, default: 10 },
 })
 
-const emit = defineEmits(['search', 'reset','add'])
+const emit = defineEmits(['search',
+  'reset',
+  'add',
+  'page-change',
+  'update:currentPage', // 用于修改 分页的值
+  'update:pageSize',
+])
 
-// 响应式搜索表单数据
 const searchData = reactive({})
-// 初始化 searchData 结构
-props.searchSchema.forEach(item => {
-  searchData[item.prop] = item.defaultValue || (item.multiple ? [] : '')
+const currentPageModel = computed({
+  get: () => props.currentPage,
+  set: (val) => emit('update:currentPage', val),
 })
 
-const handleSearch = () => emit('search', { ...searchData })
-const handleAdd = () => emit('add')
-const resetSearch = () => {
-  Object.keys(searchData).forEach(key => {
-    const item = props.searchSchema.find(s => s.prop === key)
-    searchData[key] = item.multiple ? [] : ''
+const pageSizeModel = computed({
+  get: () => props.pageSize,
+  set: (val) => emit('update:pageSize', val),
+})
+
+
+const initSearchData = () => {
+  props.searchSchema.forEach((item) => {
+    if (!(item.prop in searchData)) {
+      searchData[item.prop] = item.defaultValue ?? (item.multiple ? [] : '')
+    }
   })
-  emit('reset')
+}
+
+watch(() => props.searchSchema, initSearchData, { immediate: true, deep: true })
+
+const buildParams = () => ({
+  ...searchData,
+  currentPage: currentPageModel.value,
+  pageSize: pageSizeModel.value,
+})
+
+const handleSearch = () => {
+  const params = {...buildParams()}
+  params.currentPage = 1
+  params.pageSize = 10
+  emit('search', params)
+
+  currentPageModel.value = 1
+  pageSizeModel.value =10
+}
+
+const handleAdd = () => emit('add')
+
+const resetSearch = () => {
+  Object.keys(searchData).forEach((key) => {
+    const item = props.searchSchema.find((s) => s.prop === key)
+    searchData[key] = item?.defaultValue ?? (item?.multiple ? [] : '')
+  })
+  const params = {...buildParams()}
+  params.pageSize = 10
+  params.currentPage = 1
+  emit('reset', params)
+  emit('search', params)
+  // 异步数据
+  currentPageModel.value = 1
+  pageSizeModel.value = 10
+}
+
+const handleCurrentChange = (page) => {
+  const params = buildParams()
+  params.currentPage = page
+  emit('page-change', params)
+
+  currentPageModel.value = page
+}
+
+const handleSizeChange = (size) => {
+  const params = { ...buildParams()}
+  params.pageSize = size
+  params.currentPage = 1
+  emit('search', params)
+
+  pageSizeModel.value = size
+  currentPageModel.value = 1
 }
 </script>
 
 <style scoped>
-/* 深度修改 Element 表格样式 呼应你的玻璃拟态风格 */
 :deep(.el-table) {
   --el-table-bg-color: transparent;
   --el-table-tr-bg-color: transparent;
   --el-table-header-bg-color: #f8fafc;
 }
 :deep(.el-table__header) {
-  @apply  overflow-hidden;
+  @apply overflow-hidden;
 }
 </style>

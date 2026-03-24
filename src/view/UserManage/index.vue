@@ -4,11 +4,23 @@
         :search-schema="mySearchConfig"
         :columns="myTableColumns"
         :table-data="listData"
-        @search="onSearch"
+        @search="getUsersForAdmin"
+        @page-change="getUsersForAdmin"
+        v-model:page-size="pageSize"
+        v-model:current-page="currentPage"
+        :total="total"
     >
 
       <template #userHead="{ value }">
         <el-avatar :size="28" :src="value" />
+      </template>
+
+      <template #createTime="{ value }">
+        {{ formatDate(value) }}
+      </template>
+
+      <template #blogCount="{ value }">
+        {{ value ?? 0 }}
       </template>
 
       <template #isUserFreeze="{ value }">
@@ -18,7 +30,7 @@
       </template>
 
       <template #actions="{ row }">
-        <el-button link type="primary" size="small" @click="openDetail">详情</el-button>
+        <el-button link type="primary" size="small" @click="openDetail(row)">详情</el-button>
         <el-button v-if="row.isUserFreeze === 0" link type="danger" size="small">冻结</el-button>
         <el-button v-else-if="row.isUserFreeze === 1" link type="danger" size="small">解冻</el-button>
       </template>
@@ -61,30 +73,30 @@
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div class="glass-card-inner p-5 flex flex-col items-center justify-center border-b-2 border-blue-400">
           <div class="text-blue-500 mb-1"><i class="el-icon-document"></i> 创作总量</div>
-          <div class="text-2xl font-bold text-slate-700">{{ userDetail.blogCount }}</div>
+          <div class="text-2xl font-bold text-slate-700">{{ userDetail.blogCount??0 }}</div>
         </div>
 
         <div class="glass-card-inner p-5 flex flex-col items-center justify-center border-b-2 border-indigo-400">
           <div class="text-indigo-500 mb-1">社交互动</div>
-          <div class="text-2xl font-bold text-slate-700">{{ userDetail.comRepCount }}</div>
+          <div class="text-2xl font-bold text-slate-700">{{ userDetail.comRepCount??0 }}</div>
         </div>
 
         <div class="glass-card-inner p-5 flex flex-col items-center justify-center border-b-2 border-orange-400">
           <div class="text-orange-500 mb-1">违规次数</div>
-          <div class="text-2xl font-bold text-slate-700">{{ userDetail.toxicCount }}</div>
+          <div class="text-2xl font-bold text-slate-700">{{ userDetail.toxicCount??0 }}</div>
         </div>
 
         <div class="glass-card-inner p-5 flex flex-col items-center justify-center border-b-2"
              :class="userDetail.toxicRate > 5 ? 'border-red-400' : 'border-emerald-400'">
           <div :class="userDetail.toxicRate > 5 ? 'text-red-500' : 'text-emerald-500'" class="mb-1">内容违规率</div>
-          <div class="text-2xl font-bold text-slate-700">{{ userDetail.toxicRate }}%</div>
+          <div class="text-2xl font-bold text-slate-700">{{ userDetail.toxicRate??0 }}%</div>
         </div>
       </div>
 
       <div class="glass-card-inner p-6">
         <div class="flex items-center gap-2 mb-6">
           <div class="w-1.5 h-4 bg-indigo-500 rounded-full"></div>
-          <span class="font-bold text-slate-700">近12个月创作热度</span>
+          <span class="font-bold text-slate-700">近12个作品发布情况</span>
         </div>
         <div ref="userCreationChartRef" class="w-full h-[320px]"></div>
       </div>
@@ -199,7 +211,12 @@
 import {ref, nextTick, onMounted} from 'vue'
 import * as echarts from 'echarts';
 import DataTable from "@/components/common/DataTable/index.vue"
+import {ElMessage} from "element-plus";
+import {getUserDetail, usersForAdmin} from "@/api/user/user.js";
 
+const currentPage = ref(1);
+const pageSize = ref(10)
+const total = ref(0)
 // 1. 定义搜索框配置
 const mySearchConfig = [
   { label: '用户名称', prop: 'username', type: 'input', placeholder: '搜索关键词...' },
@@ -218,10 +235,9 @@ const mySearchConfig = [
 
 // 2. 定义表格列配置
 const myTableColumns = [
-  { label: 'ID', prop: 'id', width: '80' },
   { label: '用户名', prop: 'userName' },
-  { label: '用户头像', prop: 'userHead' },
-  { label: '用户创建时间', prop: 'createTime' },
+  { label: '用户头像', prop: 'userHead' ,width: '80'},
+  { label: '用户创建时间', prop: 'createTime',width: '160' },
   { label: '博客数量', prop: 'blogCount' },
   { label: '评论和回复数量', prop: 'comRepCount' },
   { label: '攻击性评论数量', prop: 'toxicCount' },
@@ -274,31 +290,7 @@ const onSearch = (params) => {
 
 const userVisible = ref(false)
 
-const userDetail = ref({
-  id: "1001",
-  userName: "张三",
-  userHead: "https://example.com/avatar/1001.jpg", // 示例头像地址
-  introduction: "专注于前端开发与技术分享，喜欢记录日常开发中的踩坑经验和解决方案。", // 个人简介
-  createTime: "2024-01-15 10:30:25", // 注册时间
-  blogCount: 28, // 总博客数
-  comRepCount: 156, // 总评论/回复数
-  toxicCount: 3, // 违规言论数
-  toxicRate: 0.019, // 违规率（3/156≈0.019）
-  isUserFreeze: 0, // 未冻结
-  // 嵌套的12个月博客创作数据
-  blog12MonthDTO: {
-    // 近12个月（2025-03 到 2024-04）
-    monthList: [
-      "2025-03", "2025-02", "2025-01",
-      "2024-12", "2024-11", "2024-10",
-      "2024-09", "2024-08", "2024-07",
-      "2024-06", "2024-05", "2024-04"
-    ],
-    // 对应月份的博客数量（随机且贴合实际，总数匹配blogCount）
-    blogCountList: [1, 0, 3, 2, 4, 1, 5, 2, 3, 2, 2, 1],
-    totalBlogCount: 28 // 12个月总数和外层blogCount一致
-  }
-});
+const userDetail = ref({});
 
 const statusMap={
   1:'冻结',
@@ -316,8 +308,16 @@ const toxicMap={
   0:'无攻击性'
 }
 
-const openDetail = async() => {
+const openDetail = async(row) => {
   userVisible.value = true
+
+  const res = await getUserDetail(row.id)
+  if(res.data.code === 200 ){
+    userDetail.value = res.data.data
+  }else{
+    ElMessage.error("网络繁忙")
+    return;
+  }
   // 2. 关键：等待 DOM 更新
   await nextTick()
 
@@ -524,8 +524,30 @@ const submitToxicEdit = () => {
   editToxicVisible.value = false;
 };
 
-onMounted(() => {
+const getUsersForAdmin = async (params) => {
+  const res =  await usersForAdmin(params.userName,
+      params.startDate,
+      params.endDate,
+      params.isUserFreeze,
+      params.currentPage,
+      params.pageSize
+  )
 
+  if(res.data.code === 200){
+    listData.value = res.data.data.records;
+    total.value = res.data.data.total
+  }else{
+    ElMessage.error("网络繁忙")
+  }
+
+};
+
+onMounted(async() => {
+  const params = {
+    currentPage: currentPage.value,
+    pageSize: pageSize.value
+  }
+  await getUsersForAdmin(params)
 })
 
 </script>

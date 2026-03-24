@@ -41,7 +41,7 @@
       </aside>
 
       <main class="flex-1 overflow-y-auto p-6 space-y-6">
-        <router-view></router-view>
+        <router-view :key="$route.fullPath"></router-view>
       </main>
     </div>
   </div>

@@ -114,13 +114,13 @@
           >
             <div class="font-medium text-slate-700 flex items-center gap-2">
               <span class="w-2 h-2 rounded-full bg-slate-300 group-hover:bg-indigo-400 transition-colors"></span>
-              {{ item.baseName }}
+              {{ item.baseName ?? 0 }}
             </div>
-            <div class="text-center text-slate-600 font-mono">{{ item.pointsNum }}</div>
-            <div class="text-center text-slate-600 font-mono">{{ item.questions }}</div>
+            <div class="text-center text-slate-600 font-mono">{{ item.pointsNum ?? 0 }}</div>
+            <div class="text-center text-slate-600 font-mono">{{ item.questions ?? 0 }}</div>
             <div class="text-right">
             <span class="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full text-xs font-bold shadow-sm">
-              {{ item.interviewNum }} 次
+              {{ item.interviewNum ?? 0 }} 次
             </span>
             </div>
           </div>
@@ -143,9 +143,11 @@ import {Wallet} from "@element-plus/icons-vue";
 import {onMounted, reactive, ref} from 'vue'
 import { Document, User, ChatDotRound, CollectionTag } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
+import {blog12Month, blogTypeDashboard, getDashboard, knowledgeDashboard, user12Month} from "@/api/admin/admin.js";
+import {ElMessage} from "element-plus";
 
 // 这里的结构对应你后端的 Java 实体类
-const statData = reactive({
+const statData = ref({
   blogs: 0,
   users: 0,
   comments: 0,
@@ -198,39 +200,31 @@ const getLineChartOption = (dataX, dataY, color, areaColor) => ({
 })
 
 const blogData  = ref({
-  monthList: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'],
-  blogCountList: [12, 19, 3, 5, 2, 3, 15, 20, 30, 10, 5, 18]
+
 })
 
 const userData = ref({
-  monthList: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'],
-  userCountList: [50, 60, 70, 80, 55, 90, 120, 150, 180, 100, 80, 200]
+
 })
 
 const baseList =  ref([
-  { baseName: 'Java 后端开发', pointsNum: 156, questions: 420, interviewNum: 24 },
-  { baseName: 'Vue3 前端架构', pointsNum: 89, questions: 150, interviewNum: 18 },
-  { baseName: 'MySQL 数据库优化', pointsNum: 45, questions: 90, interviewNum: 12 },
-  { baseName: 'SpringCloud 微服务', pointsNum: 120, questions: 300, interviewNum: 30 },
-  { baseName: '算法与数据结构', pointsNum: 210, questions: 500, interviewNum: 45 },
-  { baseName: 'Java 后端开发1', pointsNum: 156, questions: 420, interviewNum: 24 },
-  { baseName: 'Vue3 前端架构2', pointsNum: 89, questions: 150, interviewNum: 18 },
-  { baseName: 'MySQL 数据库优化3', pointsNum: 45, questions: 90, interviewNum: 12 },
-  { baseName: 'SpringCloud 微服务4', pointsNum: 120, questions: 300, interviewNum: 30 },
-  { baseName: '算法与数据结构5', pointsNum: 210, questions: 500, interviewNum: 45 }
+
 ])
 
-const blogTypeData  = ref (
-    [
-      { blogType: '前端', num: 45 },
-      { blogType: '后端', num: 32 },
-      { blogType: '算法', num: 18 },
-      { blogType: '计算机', num: 25 },
-      { blogType: '其他', num: 10 }
-    ]
-)
+const blogTypeData  = ref ([])
 
-onMounted(() => {
+onMounted(async() => {
+
+  await loadDashboardInfo()
+
+  await getBlog12Month()
+
+  await getUser12Month()
+
+  await getKnowledgeDashboard()
+
+  await getBlogTypeDashboard()
+
   // 初始化博客图表
   const blogChart = echarts.init(blogChartRef.value)
   blogChart.setOption(getLineChartOption(
@@ -307,6 +301,51 @@ onMounted(() => {
   })
 })
 
+
+const loadDashboardInfo= async() => {
+  const res =  await getDashboard()
+  if(res.data.code === 200){
+    statData.value = res.data.data
+  }else{
+    ElMessage.error("网络异常")
+  }
+}
+
+const getBlog12Month =async () => {
+  const res = await blog12Month()
+  if(res.data.code === 200){
+    blogData.value = res.data.data
+  }else{
+    ElMessage.error("网络异常")
+  }
+}
+
+const getUser12Month =async () => {
+  const res = await user12Month()
+  if(res.data.code === 200){
+    userData.value = res.data.data
+  }else{
+    ElMessage.error("网络异常")
+  }
+}
+
+const getKnowledgeDashboard =async () => {
+  const res = await knowledgeDashboard()
+  if(res.data.code === 200){
+    baseList.value = res.data.data
+  }else{
+    ElMessage.error("网络异常")
+  }
+}
+
+const getBlogTypeDashboard =async () => {
+  const res = await blogTypeDashboard()
+  if(res.data.code === 200){
+    blogTypeData.value = res.data.data
+  }else{
+    ElMessage.error("网络异常")
+  }
+}
 
 
 </script>

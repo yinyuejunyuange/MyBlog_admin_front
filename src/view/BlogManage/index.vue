@@ -3,7 +3,11 @@
       :search-schema="mySearchConfig"
       :columns="myTableColumns"
       :table-data="listData"
-      @search="onSearch"
+      :total="total"
+      @search="getBlogsForAdmin"
+      v-model:current-page="currentPage"
+      @page-change="getBlogsForAdmin"
+      v-model:page-size="pageSize"
   >
 
     <template #title = "{value}">
@@ -29,9 +33,9 @@
     </template>
     <template #actions="{ row }">
       <el-button link type="primary" size="small" @click="previewBlog(row)">博客预览</el-button>
-      <el-button link type="primary" size="small" @click="openDialog">详情</el-button>
-      <el-button v-if="row.status === 4" link type="success" size="small">解封</el-button>
-      <el-button v-else-if="row.status === 3" link type="danger" size="small">封禁</el-button>
+      <el-button link type="primary" size="small" @click="openDialog(row)">详情</el-button>
+      <el-button v-if="row.status === 4" link type="success" size="small" @click="unFreezeBlog(row)">解封</el-button>
+      <el-button v-else-if="row.status === 2" link type="danger" size="small" @click="freezeBlog(row)">封禁</el-button>
     </template>
   </DataTable>
 
@@ -138,7 +142,7 @@
                   round
                   class="border-none bg-indigo-50 text-indigo-600"
               >
-                {{ type }}
+                {{ type.label }}
               </el-tag>
             </div>
           </el-form-item>
@@ -199,6 +203,8 @@ import { MdPreview} from 'md-editor-v3';
 import 'md-editor-v3/lib/preview.css';
 import { ArrowLeft, Calendar, ChatDotRound, Share } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
+import {blogsForAdmin, monthlyBehaviorTrend, readBlog, updateBlogStatus} from "@/api/blog/blog.js";
+import {ElMessage} from "element-plus";
 
 // 1. 定义搜索框配置
 const mySearchConfig = [
@@ -235,61 +241,9 @@ const myTableColumns = [
 
 // 3. 模拟数据
 const listData = ref([
-  {
-    id: 1,
-    title: '2026前端开发趋势深度分析',
-    userName: '前端老周',
-    userId: 'user_89757',
-    introduce: '本文详细解读了2026年前端领域的核心技术趋势，包括AI辅助开发、跨端框架演进、Web性能优化等核心方向',
-    commentNum: 128,
-    status: 1,
-  },
-  {
-    id: 2,
-    title: 'Vue3+Vite企业级项目架构设计',
-    userName: 'Vue技术控',
-    userId: 'user_78921',
-    introduce: '分享大型Vue3项目的架构设计思路，涵盖代码规范、状态管理、路由设计、权限控制等核心要点',
-    commentNum: 89,
-    status: 1,
-  },
-  {
-    id: 3,
-    title: 'JavaScript高级语法实战技巧',
-    userName: 'JS编程手札',
-    userId: 'user_65432',
-    introduce: '从实际开发场景出发，讲解ES6+语法的高效运用，解决日常开发中的异步处理、数据处理等常见痛点',
-    commentNum: 205,
-    status: 2,
-  },
-  {
-    id: 4,
-    title: '前端性能优化的10个实用方法',
-    userName: '性能优化师',
-    userId: 'user_98765',
-    introduce: '结合实战案例，分享可落地的前端性能优化方案，让页面加载速度提升50%以上，提升用户体验',
-    commentNum: 156,
-    status: 4,
-  },
-  {
-    id: 5,
-    title: 'TypeScript类型编程入门到精通',
-    userName: 'TS进阶之路',
-    userId: 'user_54321',
-    introduce: '系统讲解TypeScript类型系统，从基础类型到高级类型编程，提升代码健壮性和可维护性',
-    commentNum: 112,
-    status: 4,
-  },
-  {
-    id: 6,
-    title: 'React Server Components实践指南',
-    userName: 'React开发者',
-    userId: 'user_45678',
-    introduce: '深入解析React服务端组件的原理与使用场景，对比传统客户端组件的优劣，适配大型项目开发',
-    commentNum: 97,
-    status: 3,
-  }
 ])
+
+const total = ref(0)
 
 const statusMap = {
   1: "保存中",
@@ -300,58 +254,7 @@ const statusMap = {
 
 const mdPreviewDialogVisible = ref(false)
 
-const previewContent = ref(`
-# Element Plus 组件使用指南 🚀
-## 1. 基础介绍
-Element Plus 是基于 Vue 3 的桌面端 UI 组件库，适配 TypeScript 和 Composition API，以下是核心组件的使用示例。
-
-## 2. 常用组件示例
-### 2.1 弹窗（Dialog）
-\`\`\`vue
-<template>
-  <el-button type="primary" @click="dialogVisible = true">打开弹窗</el-button>
-  <el-dialog v-model="dialogVisible" title="示例弹窗" width="500px">
-    <p>这是 Element Plus 弹窗的核心用法</p>
-    <template #footer>
-      <el-button @click="dialogVisible = false">取消</el-button>
-      <el-button type="primary">确定</el-button>
-    </template>
-  </el-dialog>
-</template>
-
-<script setup>
-import { ref } from 'vue'
-const dialogVisible = ref(false)
-
-\`\`\`
-
-### 2.2 表格（Table）
-| 组件名 | 用途 | 难度 |
-|--------|------|------|
-| ElDialog | 模态弹窗 | ⭐⭐ |
-| ElTable | 数据展示 | ⭐⭐⭐ |
-| ElForm | 表单提交 | ⭐⭐⭐ |
-
-## 3. 核心特性
-- 支持 Vue 3 Composition API
-- 全面适配 TypeScript
-- 丰富的内置组件（50+）
-- 支持按需引入，减小打包体积
-
-## 4. 注意事项
-> ⚠️ 注意：Element Plus 仅支持 Vue 3，Vue 2 项目请使用 Element UI。
-
-## 5. 资源链接
-- 官方文档：[Element Plus 官网](https://element-plus.org/zh-CN/)
-- GitHub 仓库：[element-plus/element-plus](https://github.com/element-plus/element-plus)
-## 6. 强调文本
-- 这是**加粗文本**
-- 这是*斜体文本*
-- 这是~~删除线文本~~
-
-## 7. 图片示例（占位图）
-![Element Plus 图标](https://element-plus.org/images/element-plus-logo.svg)
-`)
+const previewContent = ref("")
 const previewRow = ref({})
 
 const behaviorData = ref([
@@ -498,39 +401,25 @@ watch(visible, (newVal) => {
   }
 })
 
-const previewBlog = (row) => {
+const previewBlog = async(row) => {
   previewRow.value = row
   console.info(previewRow.value)
-
+  await readBlogById(row)
   mdPreviewDialogVisible.value = true;
 }
 
-const openDialog = () => {
+const openDialog = async(row) => {
+  await getBlogDetailById(row)
+  await getMonthlyBehaviorTrend(row)
   visible.value = true
 }
 
-const blogData = ref({
-  id: "202049178921",
-  userId: "2029371637193",
-  userName: "vertin",
-  title: "java后端解密",
-  introduce: " 后端揭秘后端揭秘后端揭秘后端揭秘后端揭秘后端揭秘后端揭秘后端揭秘后端揭秘后端揭秘后端揭秘后端揭秘后端揭秘",
-  typeList: [
-      "JAVA",
-      "后端",
-      "后端",
-      "后端",
-      "后端",
-      "后端",
-      "后端"
-  ],
-  publishTime: '',
-  updateTime: ' ',
-  star: "12",
-  kudos: '132 ',
-  watch:'124',
-  commentNum:'123'
-})
+const blogData = ref({})
+
+const currentPage = ref(1)
+
+const pageSize = ref(10)
+
 const formatDate = (date) => {
   if (!date) return '-';
   return new Date(date).toLocaleString('zh-CN', {
@@ -540,6 +429,62 @@ const formatDate = (date) => {
     hour: '2-digit',
     minute: '2-digit'
   });
+}
+
+const getBlogsForAdmin= async(params) =>{
+
+  console.info(params)
+
+  const res=  await blogsForAdmin(params.blogName, params.authorName,params.startDate, params.endDate , params.status, params.currentPage, params.pageSize);
+  if(res.data.code === 200){
+    listData.value = res.data.data.pageList
+    total.value = res.data.data.total
+  }
+}
+
+const readBlogById = async(row) => {
+  const res = await readBlog(row.id)
+  if(res.data.code === 200){
+    previewContent.value = res.data.data.context
+  }else{
+    ElMessage.error("网络繁忙")
+  }
+}
+
+const getBlogDetailById = async(row) =>{
+  const res = await readBlog(row.id)
+  if(res.data.code === 200){
+    blogData.value = res.data.data
+  }else{
+    ElMessage.error("网络繁忙")
+  }
+}
+
+const getMonthlyBehaviorTrend = async(row) => {
+  const res = await monthlyBehaviorTrend(row.id)
+  if(res.data.code === 200){
+    behaviorData.value = res.data.data
+  }else{
+    ElMessage.error("网络繁忙")
+  }
+}
+
+const freezeBlog = async(row) => {
+  const res = await updateBlogStatus(row.id,4)
+  if(res.data.code === 200 ){
+   await getBlogsForAdmin({currentPage:currentPage.value, pageSize: pageSize.value})
+  }else{
+    ElMessage.error("网络繁忙")
+  }
+}
+
+const unFreezeBlog = async(row) => {
+  const res = await updateBlogStatus(row.id,2)
+  if(res.data.code === 200 ){
+    await getBlogsForAdmin({currentPage: currentPage.value, pageSize: defaultPageSize.value})
+  }else{
+    ElMessage.error("网络繁忙")
+  }
 }
 
 const onSearch = (params) => {

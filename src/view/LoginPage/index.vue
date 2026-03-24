@@ -21,9 +21,9 @@
         </div>
 
         <!-- 验证码 -->
-        <div class="input-box captcha-box">
-          <el-input v-model="form.captcha" required  placeholder="验证码"/>
-          <img :src="captchaUrl" @click="refreshCaptcha" class="captcha-img" />
+        <div class="input-box code-box">
+          <el-input v-model="form.code" required  placeholder="验证码"/>
+          <img :src="verifyImg" @click="loadCode " class="code-img" />
         </div>
 
         <!-- 登录按钮 -->
@@ -34,35 +34,81 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import {onMounted, ref} from 'vue'
 import { ElMessage } from 'element-plus'
+import {useRoute, useRouter} from "vue-router";
+import {getCode, userLogin, verifyCode} from "@/api/login/login.js";
 
 const formRef = ref()
+
+const route = useRoute()
+const router = useRouter()
 
 const form = ref({
   username: '',
   password: '',
-  captcha: ''
+  code: ''
 })
 
-const captchaUrl = ref('/api/captcha?' + Date.now())
+const verifyImg = ref('')
+const verifyToken = ref('')
 
-const refreshCaptcha = () => {
-  captchaUrl.value = '/api/captcha?' + Date.now()
+const loadCode = async () => {
+  const res = await getCode()
+
+  // 获取验证token
+  verifyToken.value = res.headers['x-verify-token']
+
+  // 获取图片
+  const blob = res.data
+  verifyImg.value = URL.createObjectURL(blob)
 }
+
 
 const rules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
-  captcha: [{ required: true, message: '请输入验证码', trigger: 'blur' }]
+  code: [{ required: true, message: '请输入验证码', trigger: 'blur' }]
 }
 
-const handleLogin = () => {
-  formRef.value.validate(valid => {
-    if (!valid) return
-    ElMessage.success('登录成功（模拟）')
+const checkCode = async ( ) => {
+  let result=null
+  await verifyCode(form.value.code,verifyToken.value).then(res => {
+    result = res.data.code === 200;
+  })
+
+  return result
+}
+
+const goDashboard = () => {
+  router.push({
+    name: 'Dashboard'
   })
 }
+
+const handleLogin = async() => {
+  const checkCodeResult = await checkCode()
+  console.log(checkCodeResult)
+  if(!checkCodeResult){
+    ElMessage.error("验证码错误")
+    return
+  }
+
+  const res = await userLogin(form.value)
+  if (res.data.code === 200) {
+    localStorage.setItem('token', res.data.data.token)
+    localStorage.setItem('username', res.data.data.username)
+    localStorage.setItem('userImg', res.data.data.image)
+    goDashboard()
+  } else {
+    ElMessage.error('登录失败')
+  }
+}
+
+onMounted(async() => {
+  await loadCode()
+})
+
 </script>
 
 <style scoped>
@@ -147,13 +193,13 @@ const handleLogin = () => {
 }
 
 /* 验证码 */
-.captcha-box {
+.code-box {
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
-.captcha-img {
+.code-img {
   width: 100px;
   height: 40px;
   border-radius: 8px;
