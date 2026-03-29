@@ -4,12 +4,23 @@
       :columns="knowledgeBaseColumns"
       :table-data="pointList"
       :show-add="true"
-      @search="onSearch"
+      @search="getPageListPoint"
+      @page-change="getPageListPoint"
       @add="openAdd"
+      :total="total"
+      v-model:page-size="pageSize"
+      v-model:current-page="currentPage"
   >
     <template #relatedQuestions="{value}">
       {{value.size || 0}}
     </template>
+
+    <template #recommendedAnswer="{value}">
+      <div class="line-clamp-2">
+        {{value}}
+      </div>
+    </template>
+
     <template #level="{value}">
       <el-tag :type="value === '简单' ? 'success' : value === '中等'? 'warning':'danger' " effect="light">
         {{ value}}
@@ -17,7 +28,7 @@
     </template>
     <template #actions="{ row }">
       <el-button link type="primary" size="small" @click="openDetail(row)">编辑</el-button>
-      <el-button link type="danger" size="small" >删除</el-button>
+      <el-button link type="danger" size="small" @click="deleteKnowledgePoint(row)">删除</el-button>
     </template>
   </DataTable>
   <el-dialog v-model="visible" title="知识点详情管理" width="80%" class="glass-dialog">
@@ -26,11 +37,19 @@
       <el-tab-pane label="核心内容" name="content">
         <el-form :model="formData" label-position="top" class="p-2">
           <div class="grid grid-cols-2 gap-4">
-            <el-form-item label="知识点标题" class="col-span-2">
+            <el-form-item label="知识点标题" class="col-span-1">
               <el-input v-model="formData.title" placeholder="输入标题" />
             </el-form-item>
+
+            <el-form-item label="难度级别" class="col-span-1">
+              <el-select v-model="formData.level" placeholder="请选择难度" class="w-full">
+                <el-option label="简单" value="简单"/>
+                <el-option label="中等" value="中等" />
+                <el-option label="困难" value="困难" />
+              </el-select>
+            </el-form-item>
             <el-form-item label="推荐回答" class="col-span-2">
-              <el-input v-model="formData.recommendedAnswer" type="textarea" :rows="3" />
+              <el-input v-model="formData.recommendedAnswer" type="textarea" :rows="15" />
             </el-form-item>
           </div>
 
@@ -46,7 +65,7 @@
                 <el-input v-model="item.title" size="small" />
               </el-form-item>
               <el-form-item label="答" dense class="!mb-0">
-                <el-input v-model="item.answer" type="textarea" :rows="2" size="small" />
+                <el-input v-model="item.answer" type="textarea" :rows="8" size="small" />
               </el-form-item>
             </div>
           </div>
@@ -55,14 +74,47 @@
 
       <el-tab-pane label="关联试题管理" name="questions">
         <DataTable
+            :ref="questionSelectRef "
             :columns="questionColumns"
             :table-data="linkedQuestions"
             :show-search="false"
             :show-add="true"
             @add="openSelectQuestionDialog"
+            :total="questionTotal"
+            v-model:current-page="questionCurrentPage"
+            v-model:page-size="questionPageSize"
         >
           <template #actions="{ row }">
-            <el-button type="danger" size="small" link @click="removeQuestion(row.id)">取消关联</el-button>
+            <el-button  type="danger"  size="small" link @click="removeQuestion(row.id)">取消关联</el-button>
+          </template>
+        </DataTable>
+      </el-tab-pane>
+
+      <el-tab-pane label="相关评论" name="comment">
+        <DataTable
+            :columns="commentColumns"
+            :table-data="commentList"
+            :show-search="false"
+            :total="commentTotal"
+            @page-change="getCommentsForAdmin"
+            v-model:current-page="commentCurrentPage"
+            v-model:page-size="commentPageSize"
+        >
+          <template #isVisible="{ value }">
+            <el-tag :type="value === 0 ? 'success' : 'danger'" effect="light">
+              {{ visibleMap[value] }}
+            </el-tag>
+          </template>
+
+          <template #replyUserName = "{value}">
+            <div class="line-clamp-2 break-words text-slate-700">
+              {{value === null? '无' : value}}
+            </div>
+          </template>
+
+          <template #actions="{ row }">
+            <el-button v-if="row.isVisible === 1" link type="primary" size="small" @click="commentVisibleByAdmin(row)" >可见</el-button>
+            <el-button v-else link type="danger" size="small" @click="commentUnVisibleByAdmin(row)" >不可见</el-button>
           </template>
         </DataTable>
       </el-tab-pane>
@@ -74,11 +126,19 @@
           :table-data="allQuestionPool"
           :search-schema="questionSearchSchema"
           :show-page="true"
-          @search="handlePoolSearch"
+          @search="getAllQuestionForSelect"
+          :total="questionSelectTotal"
+          v-model:current-page="questionCurrentPage"
+          v-model:page-size="questionPageSize"
       >
         <template #id="{ row }">
           <el-checkbox v-model="selectedIds" :label="row.id">{{ '' }}</el-checkbox>
         </template>
+        <template #actions="{ row }">
+
+          <el-button type="success" size="small" link @click="relateQ(row.id)">关联</el-button>
+        </template>
+
       </DataTable>
       <template #footer>
         <el-button @click="selectDialogVisible = false">取消</el-button>
@@ -88,7 +148,7 @@
 
     <template #footer>
       <el-button @click="visible = false">关闭</el-button>
-      <el-button type="primary" @click="handleSave">保存全部</el-button>
+      <el-button type="primary" @click="addPoint">保存全部</el-button>
     </template>
   </el-dialog>
 
@@ -97,7 +157,28 @@
 
 <script setup>
 import DataTable from "@/components/common/DataTable/index.vue";
-import {reactive, ref} from "vue";
+import {onMounted, reactive, ref} from "vue";
+import {
+  add, commentsAdmin, commentUnVisible, commentVisible,
+  deletePoint,
+  getPageList,
+  getPointDetail,
+  questionList, relateQuestion, unRelateQuestion,
+  update
+} from "@/api/knowledgePoint/knowledgePoint.js";
+import {ElMessage} from "element-plus";
+import {getCommentForAdmin} from "@/api/blog/blog.js";
+import {questionPageListForSelect} from "@/api/question/question.js";
+
+const currentPage = ref(1)
+const pageSize = ref(10)
+const total = ref(0)
+
+const questionCurrentPage = ref(1)
+const questionPageSize = ref(10)
+const questionTotal = ref(0)
+
+const questionSelectTotal = ref(0)
 
 const mySearchConfig = [
   { label: '知识点名称', prop: 'search', type: 'input', placeholder: '搜索关键词...' },
@@ -115,98 +196,48 @@ const mySearchConfig = [
 const knowledgeBaseColumns = [
   { label: 'ID', prop: 'id', width: '80' },
   { label: '题目', prop: 'title' ,width: '160'},
-  { label: '推荐回答', prop: 'recommendedAnswer' ,width: '440'},
+  { label: '推荐回答', prop: 'recommendedAnswer' ,width: '840'},
   { label: '问题数量', prop: 'relatedQuestions' ,width: '100'},
   { label: '难度', prop: 'level' },
   { label: '操作', prop: 'actions', width: '150' }
 ]
 
-const pointList = ref([
-  {
-    id: 'kp001',
-    createBy: 'admin',
-    createTime: '2026-03-01T10:15:30',
-    updateBy: 'admin',
-    updateTime: '2026-03-02T14:20:15',
-    title: 'Vue3的响应式原理', // 题目/知识点标题
-    recommendedAnswer: 'Vue3通过Proxy实现响应式，相比Vue2的Object.defineProperty，能监听数组变化和新增属性，同时支持嵌套对象的深度响应式。',
-    relatedQuestions: [ // 严格匹配InterviewQuestionsDTO（仅title/answer）
-      {
-        title: 'Vue3响应式和Vue2有什么区别？',
-        answer: 'Vue2使用Object.defineProperty，只能监听已有属性的读写，无法监听数组索引变化和新增属性；Vue3使用Proxy代理整个对象，能监听更多场景，且性能更优。'
-      },
-      {
-        title: 'Proxy相比Object.defineProperty的优势？',
-        answer: '1. 能监听数组的push/pop等方法；2. 能监听对象新增/删除属性；3. 无需递归遍历嵌套对象（可懒代理）；4. 返回新对象，不修改原对象。'
-      }
-    ],
-    level: '中等',
-    type: ['Vue3', '前端框架', '响应式'],
-    isDelete: 0
-  },
-  {
-    id: 'kp002',
-    createBy: 'dev01',
-    createTime: '2026-03-05T09:30:00',
-    updateBy: 'dev01',
-    updateTime: '2026-03-05T11:45:20',
-    title: 'JavaScript异步编程',
-    recommendedAnswer: 'JS异步编程方式包括：回调函数、Promise、async/await、Generator，其中async/await是Promise的语法糖，可读性最高。',
-    relatedQuestions: [
-      {
-        title: 'Promise的三种状态是什么？如何转换？',
-        answer: 'Pending（进行中）、Fulfilled（已成功）、Rejected（已失败）；状态一旦改变（Pending→Fulfilled/Rejected），就无法再次改变。'
-      }
-    ],
-    level: '简单',
-    type: ['JavaScript', '异步', 'Promise'],
-    isDelete: 0
-  },
-  {
-    id: 'kp003',
-    createBy: 'dev02',
-    createTime: '2026-02-20T16:00:00',
-    updateBy: 'dev02',
-    updateTime: '2026-02-21T10:00:00',
-    title: 'React Hooks使用规范',
-    recommendedAnswer: '1. 只能在函数组件或自定义Hook中调用；2. 只能在组件顶层调用，不能在循环/条件/嵌套函数中调用；3. 依赖数组要准确，避免遗漏或多余依赖。',
-    relatedQuestions: [], // 无关联面试题时为空数组
-    level: '困难',
-    type: ['React', 'Hooks', '前端框架'],
-    isDelete: 1
-  },
-  {
-    id: 'kp004',
-    createBy: 'test01',
-    createTime: '2026-03-10T11:20:00',
-    updateBy: 'test01',
-    updateTime: '2026-03-10T11:20:00',
-    title: 'HTTP状态码分类及常见场景',
-    recommendedAnswer: 'HTTP状态码分为5类：1xx（信息）、2xx（成功）、3xx（重定向）、4xx（客户端错误）、5xx（服务端错误）；常见的如200（成功）、404（资源不存在）、500（服务端异常）。',
-    relatedQuestions: [
-      {
-        title: '301和302状态码的区别？',
-        answer: '301是永久重定向，浏览器会缓存重定向地址，后续请求直接访问新地址；302是临时重定向，每次请求都会先访问原地址再跳转。'
-      },
-      {
-        title: '401和403状态码的区别？',
-        answer: '401（未授权）：请求需要身份验证，用户未登录；403（禁止访问）：用户已登录，但无权限访问该资源。'
-      }
-    ],
-    level: '简单',
-    type: ['HTTP', '网络', '前端基础'],
-    isDelete: 0
-  }
-])
+const commentColumns = [
+  { label: 'ID', prop: 'id', width: '80' },
+  { label: '发布者名称', prop: 'userName' ,width: '100'},
+  { label: '评论内容', prop: 'content' ,width: '640'},
+  { label: '被回复者名称', prop: 'replyUserName' ,width: '100'},
+  { label: '是否可见', prop: 'isVisible' ,width: '100'},
+  { label: '操作', prop: 'actions', width: '150' }
+]
+
+const commentList = ref([])
+
+const pointList = ref([])
+
+const commentCurrentPage = ref(1)
+const commentPageSize = ref(10)
+const commentTotal = ref(0)
+
 
 const visible = ref(false)
 const activeTab = ref('content')
 const selectDialogVisible = ref(false)
 
+const questionSelectRef = ref(null)
+
+/**
+ * 调用组件中的方法
+ */
+const questionSelectReset = () => {
+  questionSelectRef.value?.resetSearch?.()
+}
+
 // 1. KnowledgePointDTO 数据
 const formData = ref({
   title: '',
   recommendedAnswer: '',
+  level: '',
   relatedQuestions: [], // InterviewQuestionsDTO 列表
 })
 
@@ -220,6 +251,19 @@ const allQuestionPool = ref([
 ])
 const selectedIds = ref([])
 
+const getAllQuestionForSelect = async(params) =>{
+  const res = await questionPageListForSelect(
+      params.currentPage,
+      params.pageSize,
+      params.questionType,
+      params.keyword
+  )
+  if(res.data.code === 200 ){
+    allQuestionPool.value = res.data.data.records
+    questionSelectTotal.value = res.data.data.total
+  }
+}
+
 // 表格列定义
 const questionColumns = [
   { prop: 'id', label: '选择/ID', width: '80' },
@@ -230,37 +274,107 @@ const questionColumns = [
 
 const questionSearchSchema = [
   { prop: 'questionText', label: '内容关键字', type: 'input' },
-  { prop: 'questionType', label: '题目类型', type: 'select', options: [{label: '单选', value: '1'}] }
+  {
+    label: '类型',
+    prop: 'questionType',
+    type: 'select',
+    options: [
+      { label: '单选题', value: 'single' },
+      { label: '多选题', value: 'multiple' },
+      { label: '判断题', value: 'true-false' }
+    ]
+  },
 ]
 
 // 逻辑操作
-const addInterviewItem = () => formData.relatedQuestions.push({ title: '', answer: '' })
+const addInterviewItem = () => formData.value.relatedQuestions.push({ title: '', answer: '' })
 
 const openSelectQuestionDialog = () => {
-  selectedIds.value = linkedQuestions.value.map(q => q.id)
   selectDialogVisible.value = true
 }
 
-const confirmSelection = () => {
+const selectPointRow = ref({})
+
+const confirmSelection = async() => {
   // 根据选中的 ID 过滤并同步到关联列表
-  linkedQuestions.value = allQuestionPool.value.filter(q => selectedIds.value.includes(q.id))
-  selectDialogVisible.value = false
+  const res = await relateQuestion(selectPointRow.value.id,selectedIds.value)
+  if(res.data.code === 200){
+    questionSelectReset()
+    const params = {
+      currentPage:questionCurrentPage.value,
+      pageSize: questionPageSize.value
+    }
+    await getAllQuestionForSelect(params)
+  }
 }
 
-const removeQuestion = (id) => {
-  linkedQuestions.value = linkedQuestions.value.filter(q => q.id !== id)
+const removeQuestion = async(id) => {
+  const res = await unRelateQuestion(id)
+  if(res.data.code === 200 ){
+    questionSelectReset()
+    const params = {
+      currentPage:questionCurrentPage.value,
+      pageSize: questionPageSize.value
+    }
+    await getAllQuestionForSelect(params)
+    const params2 = {
+      knowledgePointId: selectPointRow.value.id,
+      currentPage: questionCurrentPage.value,
+      pageSize: questionPageSize.value
+    }
+    const resQ = await questionList(params2.knowledgePointId,params2.currentPage,params2.pageSize)
+    if(resQ.data.code === 200){
+      linkedQuestions.value = resQ.data.data.records
+      questionTotal.value = resQ.data.data.total
+    }else{
+      ElMessage.error("网络繁忙")
+    }
+  }else{
+    ElMessage.error("网络繁忙")
+  }
 }
 
-const handleSave = () => {
-  console.log('最终保存的数据：', { ...formData, questions: linkedQuestions.value })
+const relateQ = async (id) => {
+  console.info(selectPointRow.value)
+  const res = await relateQuestion(selectPointRow.value.id,[id])
+  if(res.data.code === 200){
+    questionSelectReset()
+    const params = {
+      currentPage:questionCurrentPage.value,
+      pageSize: questionPageSize.value
+    }
+    await getAllQuestionForSelect(params)
+
+    const params2 = {
+      knowledgePointId: selectPointRow.value.id,
+      currentPage: questionCurrentPage.value,
+      pageSize: questionPageSize.value
+    }
+    const resQ = await questionList(params2.knowledgePointId,params2.currentPage,params2.pageSize)
+    if(resQ.data.code === 200){
+      linkedQuestions.value = resQ.data.data.records
+      questionTotal.value = resQ.data.data.total
+    }else{
+      ElMessage.error("网络繁忙")
+    }
+  }
 }
+
+
 
 const isEdit = ref(false)
 
-const openDetail = (row) => {
+const visibleMap={
+  0:'可见',
+  1:'不可见'
+}
+
+const openDetail = async(row) => {
   visible.value = true
   isEdit.value = true
-  formData.value = row
+
+  await getPointDetailInfo(row)
+  selectPointRow.value = row
 }
 
 const openAdd = () =>{
@@ -273,6 +387,176 @@ const openAdd = () =>{
     relatedQuestions: [], // InterviewQuestionsDTO 列表
   }
 }
+
+const getPageListPoint = async(params) => {
+  let res = null
+  try {
+    res = await getPageList(
+        params.currentPage,
+        params.pageSize,
+        params.baseId,
+        params.level,
+        params.tags,
+        params.search
+    )
+  } catch (e) {
+    ElMessage.error("网络繁忙")
+    return
+  }
+  if(res.data.code === 200){
+    total.value = res.data.data.total
+    pointList.value = res.data.data.records
+  }else{
+    ElMessage.error("网络繁忙")
+  }
+}
+
+const knowledgePointId = ref(0)
+
+const getPointDetailInfo = async(row) => {
+  const res = await getPointDetail(row.id)
+  if(res.data.code === 200){
+    formData.value = res.data.data
+  }else{
+    ElMessage.error('网络繁忙')
+    return
+  }
+  knowledgePointId.value = row.id
+  const params = {
+    knowledgePointId: row.id,
+    currentPage: questionCurrentPage.value,
+    pageSize: questionPageSize.value
+  }
+  const resQ = await questionList(params.knowledgePointId,params.currentPage,params.pageSize)
+  if(resQ.data.code === 200){
+    linkedQuestions.value = resQ.data.data.records
+    questionTotal.value = resQ.data.data.total
+  }else{
+    ElMessage.error("网络繁忙")
+  }
+
+  knowledgePointId.value = row.id
+  const commentParams = {
+    knowledgePointId: row.id,
+    currentPage: commentCurrentPage.value,
+    pageSize: commentPageSize.value
+  }
+
+  await getCommentsForAdmin(commentParams)
+
+  questionCurrentPage.value = 1;
+  questionPageSize.value = 10
+
+  const params2 = {
+    currentPage:1,
+    pageSize: 10
+  }
+  await getAllQuestionForSelect(params2)
+
+}
+
+const addPoint = async()=> {
+  let res = null;
+  if(formData.value.id === null || formData.value.id === undefined){
+    res =  await add(formData.value);
+  }else{
+    res =  await update(formData.value);
+  }
+  if(res.data.code === 200){
+    const params = {
+      currentPage: currentPage.value,
+      pageSize: pageSize.value
+    }
+    await getPageListPoint(params)
+    ElMessage.success("添加成功")
+  }else{
+    ElMessage.error("网络繁忙")
+  }
+}
+
+
+
+
+const deleteKnowledgePoint = async (row) => {
+  const data = [row.id]
+  const res = await deletePoint(data)
+  if(res.data.code === 200 ){
+    const params = {
+      currentPage: 1,
+      pageSize: 10
+    }
+    await getPageListPoint(params)
+  }else{
+    ElMessage.error("网络繁忙")
+  }
+}
+
+/**
+ * 获取给admin获取评论信息
+ * @param params
+ * @returns {Promise<void>}
+ */
+const getCommentsForAdmin = async(params) => {
+  const res = await commentsAdmin(
+      knowledgePointId.value,
+      params.userName,
+      params.replyCommentId,
+      params.currentPage,
+      params.pageSize
+  )
+  if(res.data.code === 200 ){
+    commentList.value = res.data.data.records;
+    commentTotal.value = res.data.data.total;
+  }else{
+    ElMessage.error("网络繁忙")
+  }
+}
+
+/**
+ * 获取给admin获取评论信息
+ * @param params
+ * @returns {Promise<void>}
+ */
+const commentVisibleByAdmin = async(row) => {
+  const res =  await commentVisible(row.id)
+  if(res.data.code === 200 ){
+    const commentParams = {
+      knowledgePointId: row.id,
+      currentPage: commentCurrentPage.value,
+      pageSize: commentPageSize.value
+    }
+    await getCommentsForAdmin(commentParams)
+  }else{
+    ElMessage.error("网络繁忙")
+  }
+}
+
+/**
+ * 获取给admin获取评论信息
+ * @param params
+ * @returns {Promise<void>}
+ */
+const commentUnVisibleByAdmin = async(row) => {
+  const res =  await commentUnVisible(row.id)
+  if(res.data.code === 200 ){
+    const commentParams = {
+      knowledgePointId: row.id,
+      currentPage: commentCurrentPage.value,
+      pageSize: commentPageSize.value
+    }
+    await getCommentsForAdmin(commentParams)
+  }else{
+    ElMessage.error("网络繁忙")
+  }
+}
+
+onMounted(async() => {
+  const params = {
+    currentPage: 1,
+    pageSize: 10
+  }
+  await getPageListPoint(params)
+})
 
 </script>
 

@@ -3,26 +3,39 @@
       :search-schema="mySearchConfig"
       :columns="comRepColumns"
       :table-data="comRepList"
-      @search="onSearch"
+      @search="getComForAdmin"
+      @page-change="getComForAdmin"
+      v-model:current-page="currentPage"
+      v-model:page-size="pageSize"
+      :total="total"
   >
 
     <template #isVisible="{ value }">
-      <el-tag :type="value === 1 ? 'success' : 'danger'" effect="light">
+      <el-tag :type="value === 0 ? 'success' : 'danger'" effect="light">
         {{ visibleMap[value] }}
       </el-tag>
     </template>
 
+    <template #mulType="{ value }">
+      <el-tag >
+        {{ value ?? '无'}}
+      </el-tag>
+    </template>
+
     <template #isToxic="{ value }">
-      <el-tag :type="value === 0 ? 'success' : value === 1? 'warning':'danger' " effect="light">
+      <el-tag  v-if="value !== null" :type="(value === 0) ? 'success' : value === 1? 'warning':'danger' " effect="light">
         {{ toxicMap[value] }}
+      </el-tag>
+      <el-tag  v-else type="success" effect="light">
+        否
       </el-tag>
     </template>
 
     <template #actions="{ row }">
       <el-button link type="primary" size="small" @click="openEditToxic">修改</el-button>
-      <el-button link type="primary" size="small" @click="openReplyDialog">查看回复</el-button>
-      <el-button v-if="row.isVisible === 0" link type="danger" size="small">可见</el-button>
-      <el-button v-else-if="row.isVisible === 1" link type="danger" size="small">不可见</el-button>
+      <el-button link type="primary" size="small" @click="openReplyDialog(row)">回复</el-button>
+      <el-button v-if="row.isVisible === 1" link type="danger" size="small"> 设置为可见</el-button>
+      <el-button v-else-if="row.isVisible === 0" link type="danger" size="small">设置不可见</el-button>
     </template>
   </DataTable>
 
@@ -60,67 +73,88 @@
         </el-collapse-transition>
       </el-form>
     </div>
-
-    <el-dialog
-        v-model="replyVisible"
-        title="相关回复"
-        width="800px"
-        append-to-body
-        class="glass-dialog-inner"
+  </el-dialog>
+  <el-dialog
+      v-model="replyVisible"
+      title="相关回复"
+      width="800px"
+      append-to-body
+      class="glass-dialog-inner"
+  >
+    <DataTable
+        :show-search="false"
+        :columns="repColumns"
+        :table-data="repList"
+        @search="getRepForAdmin"
+        :total="repTotal"
+        @page-change="getRepForAdmin"
+        v-model:page-size="repPageSize"
+        v-model:current-page="repCurrentPage"
     >
-      <DataTable
-          :show-search="false"
-          :columns="repColumns"
-          :table-data="repList"
-          @search="onSearch"
-      >
 
-        <template #isVisible="{ value }">
-          <el-tag :type="value === 1 ? 'success' : 'danger'" effect="light">
-            {{ visibleMap[value] }}
-          </el-tag>
-        </template>
 
-        <template #isToxic="{ value }">
-          <el-tag :type="value === 0 ? 'success' : value === 1? 'warning':'danger' " effect="light">
-            {{ toxicMap[value] }}
-          </el-tag>
-        </template>
-
-        <template #actions="{ row }">
-          <el-button link type="primary" size="small" @click="openEditToxic">修改</el-button>
-          <el-button v-if="row.isVisible === 0" link type="danger" size="small">可见</el-button>
-          <el-button v-else-if="row.isVisible === 1" link type="danger" size="small">不可见</el-button>
-        </template>
-      </DataTable>
-
-      <template #footer>
-        <div class="flex justify-end gap-2">
-          <el-button round @click="editToxicVisible = false">取消</el-button>
-          <el-button type="primary" round class="bg-indigo-500 border-none px-6" @click="submitToxicEdit">
-            确认修改
-          </el-button>
-        </div>
+      <template #isVisible="{ value }">
+        <el-tag :type="value === 0 ? 'success' : 'danger'" effect="light">
+          {{ visibleMap[value] }}
+        </el-tag>
       </template>
-    </el-dialog>
+
+      <template #mulType="{ value }">
+        <el-tag >
+          {{ value ?? '无'}}
+        </el-tag>
+      </template>
+
+      <template #isToxic="{ value }">
+        <el-tag  v-if="value !== null" :type="(value === 0) ? 'success' : value === 1? 'warning':'danger' " effect="light">
+          {{ toxicMap[value] }}
+        </el-tag>
+        <el-tag  v-else type="success" effect="light">
+          否
+        </el-tag>
+      </template>
+      <template #actions="{ row }">
+        <el-button link type="primary" size="small" @click="openEditToxic">修改</el-button>
+        <el-button v-if="row.isVisible === 0" link type="danger" size="small">可见</el-button>
+        <el-button v-else-if="row.isVisible === 1" link type="danger" size="small">不可见</el-button>
+      </template>
+    </DataTable>
+
+    <template #footer>
+      <div class="flex justify-end gap-2">
+        <el-button round @click="editToxicVisible = false">取消</el-button>
+        <el-button type="primary" round class="bg-indigo-500 border-none px-6" @click="submitToxicEdit">
+          确认修改
+        </el-button>
+      </div>
+    </template>
   </el-dialog>
 </template>
 
 <script setup>
 import DataTable from "@/components/common/DataTable/index.vue";
-import {ref} from "vue";
+import {onMounted, ref} from "vue";
 import {ElMessage} from "element-plus";
+import {getCommentForAdmin, getReplyForAdmin} from "@/api/blog/blog.js";
 
+
+const pageSize = ref(10)
+const currentPage = ref(1)
+const total = ref(0)
+
+
+const repPageSize = ref(10)
+const repCurrentPage = ref(1)
+const repTotal = ref(0)
 
 // 2. 定义表格列配置
 const comRepColumns = [
   { label: 'ID', prop: 'id', width: '80' },
-  { label: '内容', prop: 'comment' },
-  { label: '类型', prop: 'type' ,width: '80'},
-  { label: '博客标题', prop: 'blogName' },
+  { label: '内容', prop: 'context' },
+  { label: '博客标题', prop: 'blogName' ,width: '200'},
   { label: '是否可见', prop: 'isVisible',width: '80' },
   { label: '攻击类别', prop: 'mulType' },
-  { label: '是否具有攻击性', prop: 'isToxic',width: '80' },
+  { label: '是否具有攻击性', prop: 'isToxic',width: '180' },
   { label: '操作', prop: 'actions', width: '150' }
 ]
 const mySearchConfig = [
@@ -138,64 +172,13 @@ const mySearchConfig = [
     ]
   },
 ]
-const comRepList = ref([
-  {
-    id: "cr001",
-    comment: "这篇文章的观点太片面了，根本没考虑实际场景！",
-    type: "评论",
-    blogId: "blog001",
-    blogName: "2025年前端开发趋势分析",
-    isVisible: 1,
-    mulType: "",
-    isToxic: 0
-  },
-  {
-    id: "cr002",
-    comment: "你懂个啥？只会纸上谈兵，建议别乱写误导人",
-    type: "回复",
-    blogId: "blog001",
-    blogName: "2025年前端开发趋势分析",
-    isVisible: 0,
-    mulType: "人身攻击,言语冒犯",
-    isToxic: 1
-  },
-  {
-    id: "cr003",
-    comment: "垃圾文章，作者就是个傻子，浪费时间！",
-    type: "评论",
-    blogId: "blog002",
-    blogName: "Vue3+TS实战项目教程",
-    isVisible: 0,
-    mulType: "辱骂,人身攻击",
-    isToxic: 2
-  },
-  {
-    id: "cr004",
-    comment: "请问这个API的参数格式有示例吗？没看明白",
-    type: "回复",
-    blogId: "blog002",
-    blogName: "Vue3+TS实战项目教程",
-    isVisible: 1,
-    mulType: "",
-    isToxic: 0
-  },
-  {
-    id: "cr005",
-    comment: "就这水平还敢发教程？回家种地去吧",
-    type: "评论",
-    blogId: "blog003",
-    blogName: "React Hooks核心用法详解",
-    isVisible: 0,
-    mulType: "辱骂,职业攻击",
-    isToxic: 2
-  }
-]);
+const comRepList = ref([]);
 
 const editToxicVisible = ref(false);
 const selectedMulTypes = ref([]); // 用于绑定多选框数组
 const visibleMap={
-  1:'可见',
-  0:'不可见'
+  0:'可见',
+  1:'不可见'
 }
 
 const toxicMap={
@@ -219,9 +202,19 @@ const openEditToxic = (row) => {
 
   editToxicVisible.value = true;
 };
+const replyVisible = ref(false)
 
-const openReplyDialog = ()=>{
+const openReplyDialog = async(row)=>{
   replyVisible.value = true
+  repCurrentPage.value = 1
+  repPageSize.value = 10
+  const params = {
+    currentPage:1,
+    pageSize: 10,
+    commentId: row.id
+  }
+
+  await getRepForAdmin(params)
 }
 
 // 提交修改
@@ -242,7 +235,7 @@ const submitToxicEdit = () => {
   editToxicVisible.value = false;
 };
 
-const replyVisible = ref(false)
+
 // 2. 定义表格列配置
 const repColumns = [
   { label: 'ID', prop: 'id', width: '80' },
@@ -253,59 +246,54 @@ const repColumns = [
   { label: '是否具有攻击性', prop: 'isToxic',width: '80' },
   { label: '操作', prop: 'actions', width: '150' }
 ]
-const repList = ref([
-  {
-    id: "cr001",
-    context: "这篇文章的观点太片面了，根本没考虑实际场景！",
-    type: "评论",
-    blogId: "blog001",
-    blogName: "2025年前端开发趋势分析",
-    isVisible: 1,
-    mulType: "",
-    isToxic: 0
-  },
-  {
-    id: "cr002",
-    context: "你懂个啥？只会纸上谈兵，建议别乱写误导人",
-    type: "回复",
-    blogId: "blog001",
-    blogName: "2025年前端开发趋势分析",
-    isVisible: 0,
-    mulType: "人身攻击,言语冒犯",
-    isToxic: 1
-  },
-  {
-    id: "cr003",
-    context: "垃圾文章，作者就是个傻子，浪费时间！",
-    type: "评论",
-    blogId: "blog002",
-    blogName: "Vue3+TS实战项目教程",
-    isVisible: 0,
-    mulType: "辱骂,人身攻击",
-    isToxic: 2
-  },
-  {
-    id: "cr004",
-    context: "请问这个API的参数格式有示例吗？没看明白",
-    type: "回复",
-    blogId: "blog002",
-    blogName: "Vue3+TS实战项目教程",
-    isVisible: 1,
-    mulType: "",
-    isToxic: 0
-  },
-  {
-    id: "cr005",
-    context: "就这水平还敢发教程？回家种地去吧",
-    type: "评论",
-    blogId: "blog003",
-    blogName: "React Hooks核心用法详解",
-    isVisible: 0,
-    mulType: "辱骂,职业攻击",
-    isToxic: 2
-  }
-]);
+const repList = ref([]);
 
+const getComForAdmin= async(params)=>{
+  const res =  await getCommentForAdmin(params.blogName,
+      params.userName,
+      params.startTime,
+      params.endTime ,
+      params.isVisible,
+      params.currentPage ,
+      params.pageSize
+  )
+
+  if(res.data.code === 200){
+    comRepList.value = res.data.data.pageList;
+    total.value = res.data.data.total
+  }else{
+    ElMessage.error("网络繁忙")
+  }
+}
+
+const getRepForAdmin= async(params)=>{
+  const res =  await getReplyForAdmin(params.blogName,
+      params.userName,
+      params.commentId,
+      params.startTime,
+      params.endTime ,
+      params.isVisible,
+      params.currentPage ,
+      params.pageSize
+  )
+
+  if(res.data.code === 200){
+    repList.value = res.data.data.pageList;
+    repTotal.value = res.data.data.total
+  }else{
+    ElMessage.error("网络繁忙")
+  }
+}
+
+
+
+onMounted(async () => {
+  const params = {
+    currentPage: currentPage.value,
+    pageSize: pageSize.value
+  }
+  await getComForAdmin(params)
+})
 
 
 </script>

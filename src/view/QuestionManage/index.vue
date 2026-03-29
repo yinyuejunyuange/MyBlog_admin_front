@@ -4,13 +4,17 @@
       :columns="myTableColumns"
       :table-data="listData"
       :show-add="true"
-      @search="onSearch"
+      @search="getQuestionPageList"
+      @page-chang="getQuestionPageList"
       @add="openAdd"
+      v-model:current-page="currentPage"
+      v-model:page-size="pageSize"
+      :total="total"
   >
 
     <template #actions="{ row }">
       <el-button link type="primary" size="small" @click="openDialog(row)">编辑</el-button>
-      <el-button  link type="danger" size="small">删除</el-button>
+      <el-button  link type="danger" size="small" @click="deleteQ(row)">删除</el-button>
     </template>
   </DataTable>
     <el-dialog
@@ -116,8 +120,25 @@
 </template>
 
 <script setup>
-
+import {ref, reactive, watch, onMounted, computed} from 'vue'
+import { Delete } from '@element-plus/icons-vue'
+import {
+  addQuestion,
+  deleteQuestion,
+  questionDetail,
+  questionPageList,
+  updateQuestion
+} from "@/api/question/question.js";
+import {ElMessage} from "element-plus";
 import DataTable from "@/components/common/DataTable/index.vue";
+
+const currentPage = ref(1)
+const pageSize = ref(10)
+const total = ref(0)
+
+const pointCurrentPage = ref(1)
+const pointPageSize = ref(10)
+const pointTotal = ref(0)
 
 const mySearchConfig = [
   { label: '关键词', prop: 'keyword', type: 'input', placeholder: '搜索关键词...' },
@@ -140,13 +161,23 @@ const myTableColumns = [
   { label: '操作', prop: 'actions', width: '150' }
 ]
 
-import { ref, reactive, watch } from 'vue'
-import { Delete } from '@element-plus/icons-vue'
+const formatDate = (date) => {
+  if (!date) return '-';
+  return new Date(date).toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
 
-const openDialog = (row)=>{
+
+
+const openDialog = async(row)=>{
   visible.value = true
   formData.value = row
-
+  await getQuestionDetail(row)
   if (row.questionType === 'true-false') {
     formData.value.options = ['true', 'false']
   }
@@ -167,77 +198,17 @@ const openAdd = ()=> {
 }
 
 
-const listData = ref([
-  {
-    id: 1001, // Long类型在JS中用Number表示
-    createBy: 'admin',
-    createTime: '2026-03-01T09:00:00', // Date类型用ISO字符串
-    updateBy: 'admin',
-    updateTime: '2026-03-01T10:15:00',
-    questionType: 'single_choice', // 题目类型：单选题
-    questionText: 'Vue3中实现响应式的核心API是？', // 题干
-    options: [ // 选项列表（单选题示例）
-      'A.Object.defineProperty',
-      'B.Proxy',
-      'C.Reflect',
-      'D.Vue.observable'
-    ],
-    answer: ['Proxy'], // 答案列表（单选题仅一个答案）
-    knowledgePointId: 101, // 关联的知识点ID（Long类型）
-    isDelete: 0, // 0未删除，1已删除
-    explanation: 'Vue3放弃了Vue2的Object.defineProperty，改用Proxy实现响应式，Proxy能监听更多场景（如数组变化、新增属性）。' // 答案解析
-  },
-  {
-    id: 1002,
-    createBy: 'dev01',
-    createTime: '2026-03-02T14:30:00',
-    updateBy: 'dev01',
-    updateTime: '2026-03-02T15:20:00',
-    questionType: 'multiple_choice', // 题目类型：多选题
-    questionText: '以下属于JavaScript异步编程方式的有？',
-    options: [
-      'A.回调函数',
-      'B.Promise',
-      'C.async/await',
-      'D.for循环'
-    ],
-    answer: ['回调函数', 'Promise', 'async/await'], // 多选题多个答案
-    knowledgePointId: 102,
-    isDelete: 0,
-    explanation: 'JS异步编程方式包括回调函数、Promise、async/await、Generator等，for循环是同步遍历方式。'
-  },
-  {
-    id: 1003,
-    createBy: 'dev02',
-    createTime: '2026-03-03T11:00:00',
-    updateBy: 'dev02',
-    updateTime: '2026-03-03T11:00:00',
-    questionType: 'judgment', // 题目类型：判断题
-    questionText: 'React Hooks可以在条件语句中调用？',
-    options: ['正确', '错误'], // 判断题选项
-    answer: ['错误'],
-    knowledgePointId: 103,
-    isDelete: 0,
-    explanation: 'React Hooks的使用规范要求只能在组件顶层调用，不能在循环、条件、嵌套函数中调用，否则会导致Hook执行顺序错乱。'
-  },
-  {
-    id: 1004,
-    createBy: 'test01',
-    createTime: '2026-02-28T16:00:00',
-    updateBy: 'test01',
-    updateTime: '2026-02-28T17:00:00',
-    questionType: 'short_answer', // 题目类型：简答题（无选项）
-    questionText: '简述HTTP 401和403状态码的区别？',
-    options: [], // 简答题无选项，为空数组
-    answer: ['401表示未授权，用户未进行身份验证；403表示禁止访问，用户已登录但无权限。'],
-    knowledgePointId: 104,
-    isDelete: 1, // 标记为已删除
-    explanation: '401（Unauthorized）：请求需要用户身份验证，服务器返回此状态码并附带WWW-Authenticate头；403（Forbidden）：服务器理解请求但拒绝执行，权限不足。'
-  }
-])
+const listData = ref([])
 
 const visible = ref(false)
-const singleSelectedValue = ref('') // 用于辅助单选 UI 绑定
+const singleSelectedValue = computed({
+  get() {
+    return formData.value.answer?.[0] || ''
+  },
+  set(val) {
+    formData.value.answer = [val]
+  }
+})
 
 const formData = ref({
   id: null,
@@ -303,7 +274,6 @@ const handleCheckChange = (isChecked, index) => {
 // 逻辑：题型切换初始化
 const handleTypeChange = (type) => {
   formData.value.answer = []
-  singleSelectedValue.value = ''
   if (type === 'true-false') {
     formData.value.options = ['true', 'false']
   } else {
@@ -345,10 +315,65 @@ const rebuildAll = () => {
   singleSelectedValue.value = newAnswers[0] || ''
 }
 
-const submitForm = () => {
-  console.log('提交给后端的数据:', formData.value)
-  visible.value = false
+const submitForm = async() => {
+  let res = null
+  if(formData.value.id != null){
+     res = await updateQuestion(formData.value)
+  }else{
+    res = await addQuestion(formData.value)
+  }
+  if(res.data.code === 200){
+    const params = {
+      currentPage: currentPage.value,
+      pageSize:pageSize.value
+    }
+    await getQuestionPageList(params)
+    visible.value = false
+  }else{
+    ElMessage.error("网络繁忙")
+  }
 }
+
+const getQuestionPageList= async(params) => {
+  const res = await questionPageList(params.currentPage,params.pageSize,params.questionType,params.keyword)
+  if(res.data.code === 200 ){
+    listData.value = res.data.data.records
+    total.value = res.data.data.total
+  }
+}
+
+const getQuestionDetail = async(row) => {
+  const res = await questionDetail(row.id)
+  if(res.data.code === 200){
+    formData.value =  res.data.data
+  }else{
+    ElMessage.error("网络繁忙")
+  }
+}
+
+const deleteQ = async(row) => {
+  const data = [row.id]
+  const res = await deleteQuestion(data)
+  if(res.data.code === 200){
+    const params = {
+      currentPage: currentPage.value,
+      pageSize:pageSize.value
+    }
+    await getQuestionPageList(params)
+  }else{
+    ElMessage.error("网络繁忙")
+  }
+
+}
+
+
+onMounted(async() => {
+  const params = {
+    currentPage: 1,
+    pageSize:10
+  }
+  await getQuestionPageList(params)
+})
 
 </script>
 

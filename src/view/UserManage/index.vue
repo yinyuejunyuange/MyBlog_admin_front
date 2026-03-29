@@ -31,8 +31,8 @@
 
       <template #actions="{ row }">
         <el-button link type="primary" size="small" @click="openDetail(row)">详情</el-button>
-        <el-button v-if="row.isUserFreeze === 0" link type="danger" size="small">冻结</el-button>
-        <el-button v-else-if="row.isUserFreeze === 1" link type="danger" size="small">解冻</el-button>
+        <el-button v-if="row.isUserFreeze === 0" link type="danger" size="small" @click="freezeUserByUserId(row)">冻结</el-button>
+        <el-button v-else-if="row.isUserFreeze === 1" link type="danger" size="small" @click="unFreezeUserByUserId(row)" >解冻</el-button>
       </template>
     </DataTable>
   </div>
@@ -143,7 +143,7 @@
             type="danger"
             plain
             round
-            @click="handleFreeze"
+            @click="freezeUserByUserIdForDetail(userDetail)"
         >
           冻结账号
         </el-button>
@@ -152,7 +152,7 @@
             type="success"
             plain
             round
-            @click="handleUnfreeze"
+            @click="unFreezeUserByUserIdForDetail(userDetail)"
         >
           解封账号
         </el-button>
@@ -212,19 +212,19 @@ import {ref, nextTick, onMounted} from 'vue'
 import * as echarts from 'echarts';
 import DataTable from "@/components/common/DataTable/index.vue"
 import {ElMessage} from "element-plus";
-import {getUserDetail, usersForAdmin} from "@/api/user/user.js";
+import {freezeUser, getUserDetail, unFreezeUser, usersForAdmin} from "@/api/user/user.js";
 
 const currentPage = ref(1);
 const pageSize = ref(10)
 const total = ref(0)
 // 1. 定义搜索框配置
 const mySearchConfig = [
-  { label: '用户名称', prop: 'username', type: 'input', placeholder: '搜索关键词...' },
+  { label: '用户名称', prop: 'userName', type: 'input', placeholder: '搜索关键词...' },
   { label: '开始时间', prop: 'startTime', type: 'date' },
   { label: '结束时间', prop: 'endTime', type: 'date' },
   {
     label: '是否冻结',
-    prop: 'isFreeze',
+    prop: 'isUserFreeze',
     type: 'select',
     options: [
       { label: '冻结', value: 1 },
@@ -314,6 +314,7 @@ const openDetail = async(row) => {
   const res = await getUserDetail(row.id)
   if(res.data.code === 200 ){
     userDetail.value = res.data.data
+    comRepList.value = res.data.data.userComRepVOList
   }else{
     ElMessage.error("网络繁忙")
     return;
@@ -506,6 +507,61 @@ const openEditToxic = (row) => {
   editToxicVisible.value = true;
 };
 
+// 冻结用户
+const freezeUserByUserId =async(row) => {
+  const res = await freezeUser(row.id)
+  if(res.data.code === 200){
+    const params = {
+      currentPage: currentPage.value,
+      pageSize: pageSize.value
+    }
+    await getUsersForAdmin(params)
+  }else{
+    ElMessage.error("网络繁忙")
+  }
+}
+
+const freezeUserByUserIdForDetail =async(row) => {
+  const res = await freezeUser(row.id)
+  if(res.data.code === 200){
+    const params = {
+      currentPage: currentPage.value,
+      pageSize: pageSize.value
+    }
+    await getUsersForAdmin(params)
+    userDetail.value.isUserFreeze =1
+  }else{
+    ElMessage.error("网络繁忙")
+  }
+}
+
+const unFreezeUserByUserId =async(row) => {
+  const res = await unFreezeUser(row.id)
+  if(res.data.code === 200){
+    const params = {
+      currentPage: currentPage.value,
+      pageSize: pageSize.value
+    }
+    await getUsersForAdmin(params)
+  }else{
+    ElMessage.error("网络繁忙")
+  }
+}
+
+const unFreezeUserByUserIdForDetail =async(row) => {
+  const res = await unFreezeUser(row.id)
+  if(res.data.code === 200){
+    const params = {
+      currentPage: currentPage.value,
+      pageSize: pageSize.value
+    }
+    await getUsersForAdmin(params)
+    userDetail.value.isUserFreeze = 0
+  }else{
+    ElMessage.error("网络繁忙")
+  }
+}
+
 // 提交修改
 const submitToxicEdit = () => {
   // 1. 如果选择“无风险”，自动清空类别
@@ -525,6 +581,7 @@ const submitToxicEdit = () => {
 };
 
 const getUsersForAdmin = async (params) => {
+  console.log(params)
   const res =  await usersForAdmin(params.userName,
       params.startDate,
       params.endDate,

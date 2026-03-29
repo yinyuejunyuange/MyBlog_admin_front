@@ -4,22 +4,44 @@
       :columns="knowledgeBaseColumns"
       :table-data="knowledgeBaseList"
       :show-add="true"
-      @search="onSearch"
+      @search="pageListBase"
+      @page-change="pageListBase"
       @add="openAdd"
+      :total="total"
+      v-model:current-page="currentPage"
+      v-model:page-size="pageSize"
   >
     <template #knowledgeIds="{value}">
-      {{value.size || 0}}
+      {{value !== null ? value.size(): '0'}}
     </template>
+
+    <template #icon="{value}">
+      <img
+          v-if="value"
+          :src="imagePrefix +value"
+          class="absolute inset-0 h-full w-full object-cover"
+      />
+      <span v-else>-</span>
+    </template>
+
+    <template #createTime="{value}">
+      {{formatDate(value)}}
+    </template>
+
+    <template #updateTime="{value}">
+      {{formatDate(value)}}
+    </template>
+
     <template #actions="{ row }">
-      <el-button link type="primary" size="small" @click="openEdit" >编辑</el-button>
-      <el-button link type="danger" size="small" >删除</el-button>
+      <el-button link type="primary" size="small" @click="openEdit(row)" >编辑</el-button>
+      <el-button link type="danger" size="small"  @click="deleteBaseInfo(row)">删除</el-button>
     </template>
   </DataTable>
 
   <el-dialog
       v-model="kbVisible"
       :title="kbForm.id ? '编辑知识库' : '创建新知识库'"
-      width="600px"
+      width="1200px"
       destroy-on-close
       align-center
       class="glass-dialog"
@@ -37,12 +59,39 @@
         </el-form-item>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <el-form-item label="封面图标 (URL / Element-Icon)" prop="icon">
-            <el-input v-model="kbForm.icon" placeholder="输入图片链接或图标名">
-              <template #prefix>
-                <el-icon v-if="kbForm.icon"><component :is="kbForm.icon" /></el-icon>
+          <el-form-item label="封面图标" prop="icon">
+            <div
+                class="group relative flex flex-col items-center justify-center w-full h-32 cursor-pointer rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 transition-all hover:border-blue-400 hover:bg-blue-50 overflow-hidden"
+                @click="triggerFileInput"
+            >
+              <template v-if="kbForm.icon && kbForm.icon !== ''">
+                <img
+                    :src="imagePrefix +kbForm.icon"
+                    class="absolute inset-0 h-full w-full object-cover"
+                />
+                <div class="absolute inset-0 flex flex-col items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+                  <el-icon class="text-white text-2xl mb-1"><Edit /></el-icon>
+                  <span class="text-white text-xs font-medium">点击更换封面</span>
+                </div>
               </template>
-            </el-input>
+
+              <template v-else>
+                <div class="flex flex-col items-center justify-center space-y-2">
+                  <div class="p-2 rounded-full bg-gray-100 group-hover:bg-blue-100 transition-colors">
+                    <el-icon class="text-gray-400 text-xl group-hover:text-blue-500"><Plus /></el-icon>
+                  </div>
+                  <span class="text-gray-400 text-xs font-medium group-hover:text-blue-500">点击上传封面</span>
+                </div>
+              </template>
+
+              <input
+                  type="file"
+                  ref="fileInputRef"
+                  class="hidden"
+                  accept="image/*"
+                  @change="onFileChange"
+              />
+            </div>
           </el-form-item>
 
           <el-form-item label="归属分类" prop="types">
@@ -72,19 +121,34 @@
           />
         </el-form-item>
 
-        <el-form-item label="关联知识点 ID (选填)">
-          <el-select
-              v-model="kbForm.knowledgeIds"
-              multiple
-              filterable
-              allow-create
-              default-first-option
-              placeholder="输入或选择知识点 ID"
-          >
-            <el-option label="示例知识点1" value="K001" />
-          </el-select>
-        </el-form-item>
+        <DataTable
+            v-if="kbForm.id "
+            :columns="rlColumn"
+            :table-data="relateList"
+            :show-search="false"
+            @page-change="getRelatePoints"
+            @add="openVisibleToSelect"
+            :show-add="true"
+            :total="relateTotal"
+            v-model:current-page="relateCurrentPage"
+            v-model:page-size="relatePageSize"
+        >
 
+          <template #recommendedAnswer="{value}">
+            <div class="line-clamp-2">
+              {{value}}
+            </div>
+          </template>
+
+          <template #level="{value}">
+            <el-tag :type="value === '简单' ? 'success' : value === '中等'? 'warning':'danger' " effect="light">
+              {{ value}}
+            </el-tag>
+          </template>
+          <template #actions="{ row }">
+            <el-button link type="danger" size="small" @click="removeBaseAndPoint(row)">删除关联</el-button>
+          </template>
+        </DataTable>
         <div v-if="kbForm.id" class="mt-6 pt-4 border-t border-slate-100 grid grid-cols-2 gap-4 text-[10px] text-slate-400">
           <div>创建人: {{ kbForm.createBy || '系统' }} ({{ formatDate(kbForm.createTime) }})</div>
           <div>最后修改: {{ kbForm.updateBy || '-' }} ({{ formatDate(kbForm.updateTime) }})</div>
@@ -106,18 +170,106 @@
       </div>
     </template>
   </el-dialog>
+
+  <el-dialog
+    v-model="rlVisible"
+    title="关联知识点"
+    width="1200px"
+    destroy-on-close
+    align-center
+  >
+    <DataTable
+        :search-schema="rlSearchConfig"
+        :columns="rlColumn"
+        :table-data="rlDataList"
+        @search="selectToRelate "
+        @page-change="selectToRelate "
+        :total="rlTotal"
+        v-model:current-page="rlCurrentPage"
+        v-model:page-size="rlPageSize"
+    >
+
+      <template #recommendedAnswer="{value}">
+        <div class="line-clamp-2">
+          {{value}}
+        </div>
+      </template>
+
+      <template #level="{value}">
+        <el-tag :type="value === '简单' ? 'success' : value === '中等'? 'warning':'danger' " effect="light">
+          {{ value}}
+        </el-tag>
+      </template>
+      <template #actions="{ row }">
+        <el-button link type="danger" size="small" @click="relateBaseAndPoint(row)">关联</el-button>
+      </template>
+    </DataTable>
+  </el-dialog>
+
 </template>
 <script setup>
 import DataTable from "@/components/common/DataTable/index.vue";
-import {reactive, ref} from "vue";
-import {ElMessage} from "element-plus";
+import {nextTick, onMounted, reactive, ref} from "vue";
+import {ElLoading, ElMessage} from "element-plus";
+import {
+  addBase,
+  baseDetail,
+  deleteBase,
+  getPageList,
+  relatePoints, unRelatePoints,
+  updateBase
+} from "@/api/knowledgebase/knowledgebase.js";
+import {uploadBlogImage} from "@/api/admin/admin.js";
+import {pointList, pointToSelect} from "@/api/knowledgePoint/knowledgePoint.js";
+
+const currentPage = ref(1)
+const pageSize = ref(10)
+const total = ref(0)
+
+const fileInputRef = ref(null)
+
+// 触发文件选择
+const triggerFileInput = () => {
+  fileInputRef.value.click()
+}
+const imagePrefix = import.meta.env.VITE_API_BASE_URL+'user/getHead/'
+// 处理上传
+const onFileChange = async (event) => {
+  const file = event.target.files[0]
+  if (!file) return
+
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const loading = ElLoading.service({
+    target: '.custom-upload-box', // 局部加载
+    text: '上传中...'
+  })
+
+  try {
+    const res = await uploadBlogImage(formData)
+
+    // 假设你的接口返回 res.data 或 res.data.url
+    const resultUrl = res.data.data || res.data
+
+    // 把结果存进表单
+    kbForm.value.icon = resultUrl
+
+    ElMessage.success('上传成功')
+  } catch (error) {
+    ElMessage.error('上传失败')
+    console.error(error)
+  } finally {
+    loading.close()
+    event.target.value = '' // 重置 input
+  }
+}
 
 // 2. 定义表格列配置
 const knowledgeBaseColumns = [
-  { label: 'ID', prop: 'id', width: '80' },
-  { label: '图标', prop: 'icon',width: '120' },
-  { label: '名称', prop: 'name' ,width: '140'},
-  { label: '描述', prop: 'description' ,width: '480'},
+  { label: '图标', prop: 'icon',width: '80' },
+  { label: '名称', prop: 'name' ,width: '120'},
+  { label: '描述', prop: 'description' ,width: '280'},
   { label: '知识库数量', prop: 'knowledgeIds' ,width: '100'},
   { label: '创建时间', prop: 'createTime',width: '200' },
   { label: '最近修改时间', prop: 'updateTime',width: '200' },
@@ -126,56 +278,7 @@ const knowledgeBaseColumns = [
 const mySearchConfig = [
   { label: '知识库名称', prop: 'name', type: 'input', placeholder: '搜索关键词...' },
 ]
-const knowledgeBaseList = ref([
-  {
-    id: "kb001",
-    createBy: "admin",
-    createTime: "2024-01-10 09:15:30",
-    updateBy: "admin",
-    updateTime: "2024-03-05 14:20:18",
-    name: "前端开发知识库",
-    icon: "https://example.com/icons/frontend.png",
-    description: "包含HTML、CSS、JavaScript、Vue、React等前端技术的核心知识点、最佳实践和常见问题解决方案",
-    types: ["前端开发", "Web开发", "框架使用"],
-    knowledgeIds: ["k001", "k002", "k003", "k004", "k005"]
-  },
-  {
-    id: "kb002",
-    createBy: "dev_zhang",
-    createTime: "2024-02-18 11:25:45",
-    updateBy: "dev_li",
-    updateTime: "2024-04-12 16:40:22",
-    name: "后端Java知识库",
-    icon: "https://example.com/icons/java.png",
-    description: "覆盖Java基础、SpringBoot、MyBatis、微服务等后端技术栈的知识点和实战案例",
-    types: ["后端开发", "Java", "微服务"],
-    knowledgeIds: ["k006", "k007", "k008", "k009"]
-  },
-  {
-    id: "kb003",
-    createBy: "test_wang",
-    createTime: "2024-03-22 15:10:05",
-    updateBy: "test_wang",
-    updateTime: "2024-03-22 15:10:05",
-    name: "软件测试知识库",
-    icon: "https://example.com/icons/test.png",
-    description: "包含功能测试、接口测试、自动化测试、性能测试等测试领域的核心方法论和工具使用教程",
-    types: ["软件测试", "自动化测试", "接口测试"],
-    knowledgeIds: ["k010", "k011", "k012"]
-  },
-  {
-    id: "kb004",
-    createBy: "ops_chen",
-    createTime: "2024-04-05 10:30:20",
-    updateBy: "admin",
-    updateTime: "2024-04-20 09:50:15",
-    name: "运维部署知识库",
-    icon: "https://example.com/icons/ops.png",
-    description: "讲解Linux运维、Docker容器、K8s编排、CI/CD流水线等运维相关知识点",
-    types: ["运维", "容器化", "自动化部署"],
-    knowledgeIds: ["k013", "k014", "k015", "k016", "k017"]
-  }
-]);
+const knowledgeBaseList = ref([]);
 
 const kbVisible = ref(false);
 const kbFormRef = ref(null);
@@ -201,6 +304,19 @@ const kbForm = ref({
   updateTime: null
 });
 
+const formatDate = (date) => {
+  if (!date) return '-';
+  return new Date(date).toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+// TODO 补充上传图片
+
 // 表单验证规则
 const kbRules = reactive({
   name: [{ required: true, message: '请输入知识库名称', trigger: 'blur' }],
@@ -212,13 +328,27 @@ const kbRules = reactive({
 const submitKB = async () => {
   if (!kbFormRef.value) return;
 
-  await kbFormRef.value.validate((valid) => {
+  await kbFormRef.value.validate(async (valid) => {
     if (valid) {
       const isEdit = !!kbForm.value.id;
       console.log('提交的数据:', kbForm.value);
+      let res=null
+      if(kbForm.value.id !== null && kbForm.value.id !==''){
+        res = await updateBase(kbForm.value)
+      }else{
+        res =  await addBase(kbForm.value)
+      }
 
-      // TODO: 调用后端接口
-      // isEdit ? updateKB(kbForm.value) : createKB(kbForm.value);
+      if(res.data.code === 200){
+        const params = {
+          currentPage: currentPage.value,
+          pageSize: pageSize.value
+        }
+        await pageListBase(params)
+      }else{
+        ElMessage.error("网络繁忙")
+        return
+      }
 
       ElMessage.success(isEdit ? '更新成功' : '创建成功');
       kbVisible.value = false;
@@ -228,15 +358,183 @@ const submitKB = async () => {
 
 // 模拟打开新增
 const openAdd = () => {
-  kbForm.value = { id: '', name: '', icon: 'Folder', types: [], knowledgeIds: [] };
+  kbForm.value = { id: '', name: '', icon: '', types: [], knowledgeIds: [] };
   kbVisible.value = true;
 };
 
 // 模拟打开编辑
-const openEdit = (row) => {
-  kbForm.value = { ...row }; // 浅拷贝回显数据
+const openEdit = async(row) => {
+  // kbForm.value = { ...row }; // 浅拷贝回显数据
+  selectBaseId.value = row.id
+  await nextTick()
+  await getBaseDetail(row)
+
   kbVisible.value = true;
 };
+
+const pageListBase = async(params) => {
+  const res = await getPageList(params.currentPage, params.pageSize, params.name)
+  if(res.data.code === 200){
+    knowledgeBaseList.value = res.data.data.records
+    console.log(knowledgeBaseList.value)
+    total.value = res.data.data.total
+  }else{
+    ElMessage.error("网络繁忙")
+  }
+}
+
+
+/**
+ * 获取知识库详情
+ * @param row
+ * @returns {Promise<void>}
+ */
+const getBaseDetail = async (row) => {
+  const res = await baseDetail(row.id)
+  if(res.data.code === 200){
+    kbForm.value = res.data.data
+
+    relateCurrentPage.value = 1;
+    relatePageSize.value = 10;
+
+    const paramRelate={
+      currentPage: 1,
+      pageSize: 10,
+    }
+    await getRelatePoints(paramRelate)
+
+  }else{
+    ElMessage.error("网络繁忙")
+  }
+}
+
+/**
+ *
+ * @returns {Promise<void>}
+ */
+const deleteBaseInfo = async(row) => {
+  const res = await deleteBase(row.id)
+  if(res.data.code === 200){
+    const params = {
+      currentPage: currentPage.value,
+      pageSize: pageSize.value
+    }
+    await pageListBase(params)
+  }else{
+    ElMessage.error("网络繁忙")
+  }
+}
+
+const rlVisible = ref(false)
+const rlCurrentPage = ref(1)
+const rlPageSize = ref(10)
+const rlTotal = ref(0)
+
+const rlSearchConfig = [
+  { label: '知识点名称', prop: 'keywords', type: 'input', placeholder: '搜索关键词...' },
+]
+
+const rlColumn = [
+  { label: '题目', prop: 'title' ,width: '160'},
+  { label: '推荐回答', prop: 'recommendedAnswer' ,width: '840'},
+  { label: '难度', prop: 'level' },
+  { label: '操作', prop: 'actions', width: '150' }
+]
+
+const rlDataList = ref([])
+
+const relateList = ref([]);
+const relateCurrentPage = ref(1)
+const relatePageSize = ref(10)
+const relateTotal = ref(0)
+const selectBaseId = ref('')
+
+const getRelatePoints = async(params) => {
+  const param = {
+    page: params.currentPage,
+    pageSize: params.pageSize,
+    baseId: selectBaseId.value
+  }
+  const res = await pointList(param)
+  if(res.data.code === 200){
+    relateList.value = res.data.data.records
+    relateTotal.value = res.data.data.total
+  }else{
+    ElMessage.error("网络繁忙")
+  }
+}
+
+const selectToRelate = async(params) => {
+  const res = await pointToSelect(params.currentPage, params.pageSize, params.keywords, selectBaseId.value)
+  if(res.data.code === 200){
+    rlDataList.value = res.data.data.records
+    rlTotal.value = res.data.data.total
+  }else{
+    ElMessage.error("网络繁忙")
+  }
+}
+
+const openVisibleToSelect = async() =>{
+  rlVisible.value = true
+  rlCurrentPage.value = 1
+  rlPageSize.value = 10
+  const params = {
+    currentPage:1,
+    pageSize: 10,
+  }
+
+  await selectToRelate(params)
+
+
+}
+
+const relateBaseAndPoint = async(row) => {
+  const res = await relatePoints(selectBaseId.value,[row.id])
+  if(res.data.code === 200){
+    const paramRelate={
+      currentPage: relateCurrentPage.value,
+      pageSize: relatePageSize.value,
+    }
+    await getRelatePoints(paramRelate)
+
+    const paramRl={
+      currentPage: rlCurrentPage.value,
+      pageSize: rlPageSize.value,
+    }
+    await selectToRelate(paramRl)
+
+  }else{
+    ElMessage.error("网络繁忙")
+  }
+}
+
+const removeBaseAndPoint = async(row) => {
+  const res = await unRelatePoints(selectBaseId.value,[row.id])
+  if(res.data.code === 200){
+    const paramRelate={
+      currentPage: relateCurrentPage.value,
+      pageSize: relatePageSize.value,
+    }
+    await getRelatePoints(paramRelate)
+
+    const paramRl={
+      currentPage: rlCurrentPage.value,
+      pageSize: rlPageSize.value,
+    }
+    await selectToRelate(paramRl)
+
+  }else{
+    ElMessage.error("网络繁忙")
+  }
+}
+
+onMounted( async() => {
+  const params = {
+    currentPage: currentPage.value,
+    pageSize: pageSize.value
+  }
+  await pageListBase(params)
+})
 
 </script>
 <style scoped>

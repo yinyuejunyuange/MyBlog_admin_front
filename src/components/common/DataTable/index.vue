@@ -182,6 +182,18 @@ const handleSizeChange = (size) => {
   pageSizeModel.value = size
   currentPageModel.value = 1
 }
+
+const getSearchData = () => ({ ...searchData })
+
+/**
+ * 暴露部分方法
+ */
+defineExpose({
+  resetSearch,
+  handleSearch,
+  getSearchData,
+})
+
 </script>
 
 <style scoped>

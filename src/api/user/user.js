@@ -28,3 +28,29 @@ export const getUserDetail = async (userId) => {
         }
     })
 }
+
+/**
+ * 博客管理 -- 冻结用户
+ * @returns {Promise<axios.AxiosResponse<any>>}
+ */
+export const freezeUser = async (userId) => {
+    return await request.put('/admin/freezeUser',null,{
+        params: {
+            userId: userId
+        }
+    })
+}
+
+/**
+ * 博客管理 -- 解冻用户
+ * @returns {Promise<axios.AxiosResponse<any>>}
+ */
+export const unFreezeUser = async (userId) => {
+    return await request.put('/admin/unFreezeUser',null,{
+        params: {
+            userId: userId
+        }
+    })
+}
+
+

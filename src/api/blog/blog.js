@@ -56,4 +56,58 @@ export const readBlog = async (blogId) => {
     })
 }
 
+/**
+ * 分页查看 评论信息
+ * @returns {Promise<axios.AxiosResponse<any>>}
+ * @param blogName
+ * @param userName
+ * @param startTime
+ * @param endTime
+ * @param isVisible
+ * @param currentPage
+ * @param pageSize
+ */
+export const getCommentForAdmin = async (blogName,userName,startTime, endTime, isVisible, currentPage , pageSize) => {
+    return await request.get('/blog/admin/getCommentForAdmin',{
+        params:{
+            blogName: blogName,
+            userName: userName,
+            startTime: startTime,
+            endTime: endTime,
+            isVisible: isVisible,
+            currentPage: currentPage,
+            pageSize: pageSize
+        }
+    })
+}
+
+/**
+ * 分页查看 评论信息
+ * @returns {Promise<axios.AxiosResponse<any>>}
+ * @param blogName
+ * @param userName
+ * @param commentId
+ * @param startTime
+ * @param endTime
+ * @param isVisible
+ * @param currentPage
+ * @param pageSize
+ */
+export const getReplyForAdmin = async (blogName,userName,commentId,startTime, endTime, isVisible, currentPage , pageSize) => {
+    return await request.get('/blog/admin/getReplyForAdmin',{
+        params:{
+            blogName: blogName,
+            userName: userName,
+            commentId: commentId,
+            startTime: startTime,
+            endTime: endTime,
+            isVisible: isVisible,
+            currentPage: currentPage,
+            pageSize: pageSize
+        }
+    })
+}
+
+
+
 

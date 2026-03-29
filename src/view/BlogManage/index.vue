@@ -481,7 +481,7 @@ const freezeBlog = async(row) => {
 const unFreezeBlog = async(row) => {
   const res = await updateBlogStatus(row.id,2)
   if(res.data.code === 200 ){
-    await getBlogsForAdmin({currentPage: currentPage.value, pageSize: defaultPageSize.value})
+    await getBlogsForAdmin({currentPage: currentPage.value, pageSize: pageSize.value})
   }else{
     ElMessage.error("网络繁忙")
   }

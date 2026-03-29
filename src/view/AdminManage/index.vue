@@ -4,17 +4,24 @@
       :columns="myTableColumns"
       :table-data="adminList"
       :show-add="true"
-      @search="onSearch"
+      @search="getAdminPage"
       @add="openDialog"
+      :total="total"
+      @page-change="getAdminPage"
+      v-model:page-size="pageSize"
+      v-model:current-page="currentPage"
   >
     <template #isUserFreeze="{ value }">
       <el-tag :type="value === 0 ? 'success' : 'danger'" effect="light">
         {{ statusMap[value] }}
       </el-tag>
     </template>
+    <template #createTime="{ row }">
+      {{formatDate(row.createTime)}}
+    </template>
     <template #actions="{ row }">
-      <el-button link type="danger" size="small" >冻结</el-button>
-      <el-button link type="danger" size="small" >删除</el-button>
+      <el-button link v-if="row.isUserFreeze === 0" type="danger" size="small" @click="freezeAdminInfo(row)" >冻结</el-button>
+      <el-button link v-else type="success" size="small" @click="unFreezeAdminInfo(row)">解冻</el-button>
     </template>
   </DataTable>
 
@@ -79,7 +86,7 @@
         <el-button @click="visible = false">取消</el-button>
         <el-button
             type="primary"
-            @click="handleSave"
+            @click="addNewAdmin"
             class="!bg-slate-900 !border-slate-900 w-32"
         >确认创建</el-button>
       </div>
@@ -94,7 +101,8 @@ import { User, Lock, Check, InfoFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 
 import DataTable from "@/components/common/DataTable/index.vue";
-import {ref} from "vue";
+import {onMounted, ref} from "vue";
+import {addAdmin, adminPage, freezeAdmin, unFreezeAdmin} from "@/api/admin/admin.js";
 
 const mySearchConfig = [
   { label: '管理员', prop: 'keyword', type: 'input', placeholder: '搜索关键词...' },
@@ -112,7 +120,6 @@ const mySearchConfig = [
 ]
 
 const myTableColumns = [
-  { label: 'ID', prop: 'id', width: '80' },
   { label: '用户名', prop: 'userName' },
   { label: '用户头像', prop: 'userHead' },
   { label: '用户创建时间', prop: 'createTime' },
@@ -120,53 +127,16 @@ const myTableColumns = [
   { label: '操作', prop: 'actions', width: '150' }
 ]
 
-const adminList = ref([
-  {
-    id: 1001, // ID字段（数字类型）
-    userName: 'admin', // 用户名（管理员账号）
-    userHead: 'https://example.com/avatar/admin.png', // 头像URL（模拟真实地址）
-    createTime: '2026-01-10 09:30:00', // 创建时间（常用格式化字符串）
-    isUserFreeze: 0, // 0=未冻结，1=已冻结（数字类型，贴合后台常用状态码）
-    actions: '' // 操作列仅作为表格展示占位，实际由表格组件渲染按钮
-  },
-  {
-    id: 1002,
-    userName: 'zhang_san',
-    userHead: 'https://example.com/avatar/zhangsan.png',
-    createTime: '2026-02-15 14:20:00',
-    isUserFreeze: 0,
-    actions: ''
-  },
-  {
-    id: 1003,
-    userName: 'li_si',
-    userHead: 'https://example.com/avatar/lisi.png',
-    createTime: '2026-02-20 10:15:00',
-    isUserFreeze: 1, // 标记为已冻结
-    actions: ''
-  },
-  {
-    id: 1004,
-    userName: 'wang_wu',
-    userHead: 'https://example.com/avatar/wangwu.png',
-    createTime: '2026-03-01 16:40:00',
-    isUserFreeze: 0,
-    actions: ''
-  },
-  {
-    id: 1005,
-    userName: 'zhao_liu',
-    userHead: 'https://example.com/avatar/zhaoliu.png',
-    createTime: '2026-03-10 11:00:00',
-    isUserFreeze: 1,
-    actions: ''
-  }
-])
+const adminList = ref([])
 
 const statusMap={
   1:'冻结',
   0:'正常'
 }
+
+const currentPage = ref(1)
+const pageSize = ref(10)
+const total = ref(0)
 
 const visible = ref(false)
 const formRef = ref(null)
@@ -228,6 +198,86 @@ const openDialog = () => {
     confirmPassword: ''
   }
 }
+
+const getAdminPage =async(params) => {
+  const res = await adminPage(
+      params.userName,
+      params.startData,
+      params.endTime,
+      params.isUserFreeze,
+      params.currentPage,
+      params.pageSize
+  )
+  if(res.data.code === 200){
+    adminList.value = res.data.data.records
+    total.value = res.data.data.total
+  }else{
+    ElMessage.error("网络繁忙")
+  }
+}
+const formatDate = (date) => {
+  if (!date) return '-';
+  return new Date(date).toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+const freezeAdminInfo=async (row) => {
+  const res = await freezeAdmin(row.id)
+  if(res.data.code === 200){
+    const params={
+      currentPage: 1,
+      pageSize : 10
+    }
+    await getAdminPage(params)
+  }else{
+    ElMessage.error("网络繁忙")
+  }
+
+}
+
+const unFreezeAdminInfo=async (row) => {
+  const res = await unFreezeAdmin(row.id)
+  if(res.data.code === 200){
+    const params={
+      currentPage: 1,
+      pageSize : 10
+    }
+    await getAdminPage(params)
+  }else{
+    ElMessage.error("网络繁忙")
+  }
+}
+
+/**
+ * 新增用户信息
+ */
+const addNewAdmin = async() => {
+  const res = await addAdmin(formData.value)
+  if(res.data.code === 200){
+    const params={
+      currentPage: currentPage.value,
+      pageSize : pageSize.value
+    }
+    await getAdminPage(params)
+    visible.value=false
+  }else{
+    ElMessage.error("网络繁忙")
+  }
+}
+
+
+onMounted(async()=> {
+  const params={
+    currentPage: 1,
+    pageSize : 10
+  }
+  await getAdminPage(params)
+})
 
 </script>
 
