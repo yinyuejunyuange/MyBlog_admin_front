@@ -16,9 +16,22 @@ export const verifyCode = async (code,verifyToken) => {
         }
     })
 }
-
+/**
+ * 管理员登录
+ * @param loginForm
+ * @returns {Promise<axios.AxiosResponse<any>>}
+ */
 export const userLogin = async (loginForm) => {
-    return await request.post('/auth/login',loginForm)
+    return await request.post('/auth/adminLogin',loginForm)
+}
+
+/**
+ * 用户修改密码
+ * @param loginForm
+ * @returns {Promise<axios.AxiosResponse<any>>}
+ */
+export const updatePassword = async (loginForm) => {
+    return await request.post('/auth/updatePassword',loginForm)
 }
 
 export const userRegister = async (registerForm) => {

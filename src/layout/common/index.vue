@@ -6,7 +6,7 @@
       <div class="flex items-center gap-2">
         <div class="w-15 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold">CNDN</div>
         <span class="text-lg font-bold bg-gradient-to-r from-slate-800 to-slate-500 bg-clip-text text-transparent">
-          xbbJIE-Master
+          CSDN后台管理系统
         </span>
       </div>
 
@@ -19,14 +19,16 @@
 
         <el-dropdown trigger="click">
           <div class="flex items-center gap-2 cursor-pointer outline-none">
-            <el-avatar :size="28" src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" />
-            <span class="text-sm font-medium text-slate-700">xbbroot</span>
+            <el-avatar :size="28" :src="imgPrefix + userImg" />
+            <span class="text-sm font-medium text-slate-700">{{userName}}</span>
             <el-icon><ArrowDown /></el-icon>
           </div>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item><el-icon><EditPen /></el-icon>修改密码</el-dropdown-item>
-              <el-dropdown-item divided text-color="red">
+              <el-dropdown-item @click="showPasswordDialog = true" ><el-icon><EditPen /></el-icon>修改密码</el-dropdown-item>
+              <el-dropdown-item divided text-color="red"
+                                @click="logOut"
+              >
                 <el-icon><SwitchButton /></el-icon>退出登录
               </el-dropdown-item>
             </el-dropdown-menu>
@@ -44,11 +46,43 @@
         <router-view :key="$route.fullPath"></router-view>
       </main>
     </div>
+
+    <el-dialog
+        v-model="showPasswordDialog"
+        title="修改登录密码"
+        width="400px"
+        destroy-on-close
+        align-center
+    >
+      <el-form
+          ref="passwordFormRef"
+          :model="passwordForm"
+          :rules="passwordRules"
+          label-width="100px"
+          label-position="top"
+      >
+        <el-form-item label="旧密码" prop="oldPassword">
+          <el-input v-model="passwordForm.oldPassword" type="password" show-password placeholder="请输入原密码" />
+        </el-form-item>
+        <el-form-item label="新密码" prop="newPassword">
+          <el-input v-model="passwordForm.newPassword" type="password" show-password placeholder="请输入 6-16 位新密码" />
+        </el-form-item>
+        <el-form-item label="确认新密码" prop="confirmPassword">
+          <el-input v-model="passwordForm.confirmPassword" type="password" show-password placeholder="请再次输入新密码" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+    <span class="dialog-footer">
+      <el-button @click="showPasswordDialog = false">取消</el-button>
+      <el-button type="primary" @click="handleUpdatePassword">确认修改</el-button>
+    </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { onMounted } from 'vue'
+import {onMounted, reactive, ref} from 'vue'
 // 导入 Element Plus 图标
 import {
   Bell, Monitor, Switch, ArrowDown, Wallet, DataAnalysis,
@@ -56,6 +90,76 @@ import {
 } from '@element-plus/icons-vue'
 
 import Aside from '@/components/layout/aside/index.vue'
+import {ElMessage} from "element-plus";
+import {updatePassword, userLogout} from "@/api/login/login.js";
+import {useRoute, useRouter} from "vue-router";
+
+const route = useRoute()
+const router = useRouter()
+
+const imgPrefix = import.meta.env.VITE_API_BASE_URL+'user/getHead/'
+const userName = localStorage.getItem('username')
+const userImg = localStorage.getItem('userImg')
+// --- 修改密码逻辑开始 ---
+const showPasswordDialog = ref(false)
+const passwordFormRef = ref(null)
+
+const passwordForm = reactive({
+  oldPassword: '',
+  newPassword: '',
+  confirmPassword: ''
+})
+
+// 自定义校验规则：确认密码必须一致
+const validateConfirmPassword = (rule, value, callback) => {
+  if (value !== passwordForm.newPassword) {
+    callback(new Error('两次输入的密码不一致'))
+  } else {
+    callback()
+  }
+}
+
+const passwordRules = {
+  oldPassword: [{ required: true, message: '请输入原密码', trigger: 'blur' }],
+  newPassword: [
+    { required: true, message: '请输入新密码', trigger: 'blur' },
+    { min: 6, max: 16, message: '长度在 6 到 16 个字符', trigger: 'blur' }
+  ],
+  confirmPassword: [
+    { required: true, message: '请再次输入新密码', trigger: 'blur' },
+    { validator: validateConfirmPassword, trigger: 'blur' }
+  ]
+}
+
+const handleUpdatePassword = async () => {
+  if (!passwordFormRef.value) return
+  await passwordFormRef.value.validate(async(valid) => {
+    if (valid) {
+      // 这里调用你的后端接口
+      console.log('提交的数据：', passwordForm)
+      const res = await updatePassword(passwordForm)
+      if(res.data.code === 200){
+        ElMessage.success('密码修改成功，请重新登录')
+        showPasswordDialog.value = false
+        // 重置表单
+        passwordFormRef.value.resetFields()
+      }else{
+        ElMessage.error("密码修改失败")
+      }
+    } else {
+      console.log('校验失败')
+    }
+  })
+}
+
+const logOut = async () => {
+  await userLogout()
+  localStorage.clear()
+  router.push({
+    name: "LoginPage"
+  })
+}
+
 
 onMounted(() => {
   if (window.particlesJS) {
