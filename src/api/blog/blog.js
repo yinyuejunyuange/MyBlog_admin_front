@@ -108,6 +108,30 @@ export const getReplyForAdmin = async (blogName,userName,commentId,startTime, en
     })
 }
 
+/**
+ * 修改评论是否可见
+ */
+export const updateCommentStatus = async (commentId, status) => {
+    return await request.put('/blog/admin/changeCommentStatus',null,{
+        params:{
+            commentId: commentId,
+            isVisible: status
+        }
+    })
+}
+
+/**
+ * 修改回复是否可见
+ */
+export const updateReplyStatus = async (replyId, status) => {
+    return await request.put('/blog/admin/changeReplyStatus',null,{
+        params:{
+            replyId: replyId,
+            isVisible: status
+        }
+    })
+}
+
 
 
 

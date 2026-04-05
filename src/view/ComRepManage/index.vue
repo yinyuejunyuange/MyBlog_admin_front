@@ -34,8 +34,8 @@
     <template #actions="{ row }">
       <el-button link type="primary" size="small" @click="openEditToxic">修改</el-button>
       <el-button link type="primary" size="small" @click="openReplyDialog(row)">回复</el-button>
-      <el-button v-if="row.isVisible === 1" link type="danger" size="small"> 设置为可见</el-button>
-      <el-button v-else-if="row.isVisible === 0" link type="danger" size="small">设置不可见</el-button>
+      <el-button v-if="row.isVisible === 1" link type="danger" size="small" @click="changeCommentVisible(row)" > 设置为可见</el-button>
+      <el-button v-else-if="row.isVisible === 0" link type="danger" size="small" @click="changeCommentInVisible(row)" >设置不可见</el-button>
     </template>
   </DataTable>
 
@@ -115,8 +115,8 @@
       </template>
       <template #actions="{ row }">
         <el-button link type="primary" size="small" @click="openEditToxic">修改</el-button>
-        <el-button v-if="row.isVisible === 0" link type="danger" size="small">可见</el-button>
-        <el-button v-else-if="row.isVisible === 1" link type="danger" size="small">不可见</el-button>
+        <el-button v-if="row.isVisible === 0" link type="danger" size="small" @click="changeReplyInVisible(row)">可见</el-button>
+        <el-button v-else-if="row.isVisible === 1" link type="danger" size="small" @click="changeReplyVisible(row)">不可见</el-button>
       </template>
     </DataTable>
 
@@ -135,7 +135,7 @@
 import DataTable from "@/components/common/DataTable/index.vue";
 import {onMounted, ref} from "vue";
 import {ElMessage} from "element-plus";
-import {getCommentForAdmin, getReplyForAdmin} from "@/api/blog/blog.js";
+import {getCommentForAdmin, getReplyForAdmin, updateCommentStatus, updateReplyStatus} from "@/api/blog/blog.js";
 
 
 const pageSize = ref(10)
@@ -204,10 +204,17 @@ const openEditToxic = (row) => {
 };
 const replyVisible = ref(false)
 
+const commentId = ref('')
+
 const openReplyDialog = async(row)=>{
+
+  repList.value = []
+  repTotal.value = 0
+
   replyVisible.value = true
   repCurrentPage.value = 1
   repPageSize.value = 10
+  commentId.value = row.id
   const params = {
     currentPage:1,
     pageSize: 10,
@@ -235,6 +242,69 @@ const submitToxicEdit = () => {
   editToxicVisible.value = false;
 };
 
+const changeCommentVisible = async(row) => {
+  const res = await updateCommentStatus(row.id,0)
+  if(res.data.code === 200){
+    const params = {
+      currentPage: currentPage.value,
+      pageSize: pageSize.value
+    }
+    await getComForAdmin(params)
+  }else{
+    ElMessage.error('网络繁忙')
+  }
+}
+
+const changeCommentInVisible = async(row) => {
+  const res = await updateCommentStatus(row.id,1)
+  if(res.data.code === 200){
+    const params = {
+      currentPage: currentPage.value,
+      pageSize: pageSize.value
+    }
+    await getComForAdmin(params)
+  }else{
+    ElMessage.error('网络繁忙')
+  }
+}
+
+const changeReplyVisible = async(row) => {
+  const res = await updateReplyStatus(row.id,0)
+  if(res.data.code === 200){
+    repList.value = []
+    repTotal.value = 0
+    replyVisible.value = true
+    repCurrentPage.value = 1
+    repPageSize.value = 10
+    const params = {
+      currentPage:1,
+      pageSize: 10,
+      commentId: commentId.value
+    }
+    await getRepForAdmin(params)
+  }else{
+    ElMessage.error('网络繁忙')
+  }
+}
+
+const changeReplyInVisible = async(row) => {
+  const res = await updateReplyStatus(row.id,1)
+  if(res.data.code === 200){
+    repList.value = []
+    repTotal.value = 0
+    replyVisible.value = true
+    repCurrentPage.value = 1
+    repPageSize.value = 10
+    const params = {
+      currentPage:1,
+      pageSize: 10,
+      commentId: commentId.value
+    }
+    await getRepForAdmin(params)
+  }else{
+    ElMessage.error('网络繁忙')
+  }
+}
 
 // 2. 定义表格列配置
 const repColumns = [
