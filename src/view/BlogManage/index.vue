@@ -1,5 +1,6 @@
 <template>
   <DataTable
+      ref="dataTableRef"
       :search-schema="mySearchConfig"
       :columns="myTableColumns"
       :table-data="listData"
@@ -197,7 +198,7 @@
 </template>
 
 <script setup>
-import {nextTick, ref, watch} from 'vue'
+import {nextTick, onMounted, ref, watch} from 'vue'
 import DataTable from "@/components/common/DataTable/index.vue"
 import { MdPreview} from 'md-editor-v3';
 import 'md-editor-v3/lib/preview.css';
@@ -472,7 +473,8 @@ const getMonthlyBehaviorTrend = async(row) => {
 const freezeBlog = async(row) => {
   const res = await updateBlogStatus(row.id,4)
   if(res.data.code === 200 ){
-   await getBlogsForAdmin({currentPage:currentPage.value, pageSize: pageSize.value})
+    await onSearch()
+   //await getBlogsForAdmin({currentPage:currentPage.value, pageSize: pageSize.value})
   }else{
     ElMessage.error("网络繁忙")
   }
@@ -481,15 +483,29 @@ const freezeBlog = async(row) => {
 const unFreezeBlog = async(row) => {
   const res = await updateBlogStatus(row.id,2)
   if(res.data.code === 200 ){
-    await getBlogsForAdmin({currentPage: currentPage.value, pageSize: pageSize.value})
+    await onSearch()
+    // await getBlogsForAdmin({currentPage: currentPage.value, pageSize: pageSize.value})
   }else{
     ElMessage.error("网络繁忙")
   }
 }
 
-const onSearch = (params) => {
-
+const onSearch = async() => {
+  await dataTableRef.value?.handleSearch()
 }
+
+const dataTableRef = ref(null)
+
+
+
+onMounted(async() => {
+  const params= {
+    currentPage: currentPage.value,
+    pageSize: pageSize.value
+  }
+  await getBlogsForAdmin(params)
+})
+
 </script>
 
 <style scoped>

@@ -11,11 +11,6 @@
       </div>
 
       <div class="flex items-center gap-5">
-        <div class="flex items-center gap-4 text-slate-500">
-          <el-icon class="cursor-pointer hover:text-indigo-600"><Bell /></el-icon>
-          <el-icon class="cursor-pointer hover:text-indigo-600"><Monitor /></el-icon>
-          <el-icon class="cursor-pointer hover:text-indigo-600"><Switch /></el-icon>
-        </div>
 
         <el-dropdown trigger="click">
           <div class="flex items-center gap-2 cursor-pointer outline-none">

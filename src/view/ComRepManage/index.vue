@@ -8,6 +8,7 @@
       v-model:current-page="currentPage"
       v-model:page-size="pageSize"
       :total="total"
+      ref="dataTableRef"
   >
 
     <template #isVisible="{ value }">
@@ -17,8 +18,8 @@
     </template>
 
     <template #mulType="{ value }">
-      <el-tag >
-        {{ value ?? '无'}}
+      <el-tag  >
+        {{ !value || value === '' ? '无': value}}
       </el-tag>
     </template>
 
@@ -32,7 +33,7 @@
     </template>
 
     <template #actions="{ row }">
-      <el-button link type="primary" size="small" @click="openEditToxic">修改</el-button>
+      <el-button link type="primary" size="small" @click="openEditToxic(row, 'comment')">修改</el-button>
       <el-button link type="primary" size="small" @click="openReplyDialog(row)">回复</el-button>
       <el-button v-if="row.isVisible === 1" link type="danger" size="small" @click="changeCommentVisible(row)" > 设置为可见</el-button>
       <el-button v-else-if="row.isVisible === 0" link type="danger" size="small" @click="changeCommentInVisible(row)" >设置不可见</el-button>
@@ -73,6 +74,14 @@
         </el-collapse-transition>
       </el-form>
     </div>
+    <template #footer>
+      <div class="flex justify-end gap-2">
+        <el-button round @click="editToxicVisible = false">取消</el-button>
+        <el-button type="primary" round class="bg-indigo-500 border-none px-6" @click="submitToxicEdit">
+          确认修改
+        </el-button>
+      </div>
+    </template>
   </el-dialog>
   <el-dialog
       v-model="replyVisible"
@@ -90,9 +99,8 @@
         @page-change="getRepForAdmin"
         v-model:page-size="repPageSize"
         v-model:current-page="repCurrentPage"
+        ref="dataReplyRef"
     >
-
-
       <template #isVisible="{ value }">
         <el-tag :type="value === 0 ? 'success' : 'danger'" effect="light">
           {{ visibleMap[value] }}
@@ -101,7 +109,7 @@
 
       <template #mulType="{ value }">
         <el-tag >
-          {{ value ?? '无'}}
+          {{ !value|| value === '' ? '无': value}}
         </el-tag>
       </template>
 
@@ -114,7 +122,7 @@
         </el-tag>
       </template>
       <template #actions="{ row }">
-        <el-button link type="primary" size="small" @click="openEditToxic">修改</el-button>
+        <el-button link type="primary" size="small" @click="openEditToxic(row,'reply')">修改</el-button>
         <el-button v-if="row.isVisible === 0" link type="danger" size="small" @click="changeReplyInVisible(row)">可见</el-button>
         <el-button v-else-if="row.isVisible === 1" link type="danger" size="small" @click="changeReplyVisible(row)">不可见</el-button>
       </template>
@@ -122,10 +130,7 @@
 
     <template #footer>
       <div class="flex justify-end gap-2">
-        <el-button round @click="editToxicVisible = false">取消</el-button>
-        <el-button type="primary" round class="bg-indigo-500 border-none px-6" @click="submitToxicEdit">
-          确认修改
-        </el-button>
+        <el-button round @click="replyVisible = false">关闭</el-button>
       </div>
     </template>
   </el-dialog>
@@ -135,7 +140,13 @@
 import DataTable from "@/components/common/DataTable/index.vue";
 import {onMounted, ref} from "vue";
 import {ElMessage} from "element-plus";
-import {getCommentForAdmin, getReplyForAdmin, updateCommentStatus, updateReplyStatus} from "@/api/blog/blog.js";
+import {
+  getCommentForAdmin,
+  getReplyForAdmin,
+  updateCommentStatus, updateCommentToxic,
+  updateReplyStatus,
+  updateReplyToxic
+} from "@/api/blog/blog.js";
 
 
 const pageSize = ref(10)
@@ -193,13 +204,17 @@ const toxicForm = ref({
 });
 
 // 打开修改弹窗
-const openEditToxic = (row) => {
+// 2. 增加一个变量来标记当前操作的对象类型
+const currentEditType = ref('comment'); // 'comment' 或 'reply'
+
+// 3. 完善打开弹窗的方法 (注意传入 row 和 type)
+const openEditToxic = (row, type = 'comment') => {
+  currentEditType.value = type; // 记录是评论还是回复
   toxicForm.value.id = row.id;
-  toxicForm.value.isToxic = row.isToxic;
+  toxicForm.value.isToxic = row.isToxic ?? 0;
 
-  // 将后端逗号分隔字符串转为数组回显
+  // 回显多选框
   selectedMulTypes.value = row.mulType ? row.mulType.split(',') : [];
-
   editToxicVisible.value = true;
 };
 const replyVisible = ref(false)
@@ -224,22 +239,51 @@ const openReplyDialog = async(row)=>{
   await getRepForAdmin(params)
 }
 
+const dataTableRef = ref(null)
+const dataReplyRef = ref(null)
+
 // 提交修改
-const submitToxicEdit = () => {
-  // 1. 如果选择“无风险”，自动清空类别
-  if (toxicForm.value.isToxic === 0) {
-    toxicForm.value.mulType = '';
-  } else {
-    // 2. 将数组转回逗号分隔字符串
-    toxicForm.value.mulType = selectedMulTypes.value.join(',');
+// 4. 补全提交修改逻辑
+const submitToxicEdit = async () => {
+  // 转换数据格式
+  const mulTypeStr = toxicForm.value.isToxic === 0 ? '' : selectedMulTypes.value.join(',');
+
+  const payload = {
+    id: toxicForm.value.id,
+    isToxic: toxicForm.value.isToxic,
+    mulType: mulTypeStr
+  };
+
+  try {
+    let res;
+    if (currentEditType.value === 'comment') {
+      res = await updateCommentToxic(payload);
+    } else {
+      res = await updateReplyToxic(payload);
+    }
+
+    if (res.data.code === 200) {
+      ElMessage.success('审核判定已更新');
+      editToxicVisible.value = false;
+
+      // 5. 成功后刷新对应列表
+      if (currentEditType.value === 'comment') {
+        dataTableRef.value?.handleSearch()
+      } else {
+        const params={
+          currentPage: repCurrentPage.value,
+          pageSize: pageSize.value,
+          commentId: commentId.value
+        }
+        await getRepForAdmin(params)
+      }
+    } else {
+      ElMessage.error(res.data.msg || '操作失败');
+    }
+  } catch (error) {
+    console.error(error);
+    ElMessage.error('系统异常');
   }
-
-  console.log('提交给后端的 DTO:', toxicForm.value);
-
-  // TODO: 调用后端接口
-
-  ElMessage.success('审核判定已更新');
-  editToxicVisible.value = false;
 };
 
 const changeCommentVisible = async(row) => {

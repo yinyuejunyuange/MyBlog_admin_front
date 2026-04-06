@@ -9,10 +9,11 @@
         v-model:page-size="pageSize"
         v-model:current-page="currentPage"
         :total="total"
+        ref="dataTableRef"
     >
 
       <template #userHead="{ value }">
-        <el-avatar :size="28" :src="value" />
+        <el-avatar :size="28" :src=" imagePrefix+ value" />
       </template>
 
       <template #createTime="{ value }">
@@ -126,7 +127,7 @@
           </template>
 
           <template #actions="{ row }">
-            <el-button link type="primary" size="small" @click="openEditToxic">修改</el-button>
+            <el-button link type="primary" size="small" @click="openEditToxic(row)">修改</el-button>
             <el-button v-if="row.isVisible === 0" link type="danger" size="small">可见</el-button>
             <el-button v-else-if="row.isVisible === 1" link type="danger" size="small">不可见</el-button>
           </template>
@@ -213,6 +214,7 @@ import * as echarts from 'echarts';
 import DataTable from "@/components/common/DataTable/index.vue"
 import {ElMessage} from "element-plus";
 import {freezeUser, getUserDetail, unFreezeUser, usersForAdmin} from "@/api/user/user.js";
+import {updateCommentToxic, updateReplyToxic} from "@/api/blog/blog.js";
 
 const currentPage = ref(1);
 const pageSize = ref(10)
@@ -283,10 +285,7 @@ const listData = ref([
   }
 ])
 
-const onSearch = (params) => {
-  console.log('触发搜索，参数为：', params)
-  // 这里写请求后端 API 的逻辑
-}
+const imagePrefix = import.meta.env.VITE_API_BASE_URL+'user/getHead/'
 
 const userVisible = ref(false)
 
@@ -307,10 +306,10 @@ const toxicMap={
   2:'具有攻击性',
   0:'无攻击性'
 }
-
+const currentUserId = ref('')
 const openDetail = async(row) => {
   userVisible.value = true
-
+  currentUserId.value = row.id
   const res = await getUserDetail(row.id)
   if(res.data.code === 200 ){
     userDetail.value = res.data.data
@@ -503,7 +502,11 @@ const openEditToxic = (row) => {
 
   // 将后端逗号分隔字符串转为数组回显
   selectedMulTypes.value = row.mulType ? row.mulType.split(',') : [];
-
+  if(row.type === '回复'){
+    currentEditType.value = 'reply'
+  }else{
+    currentEditType.value = 'comment'
+  }
   editToxicVisible.value = true;
 };
 
@@ -511,11 +514,7 @@ const openEditToxic = (row) => {
 const freezeUserByUserId =async(row) => {
   const res = await freezeUser(row.id)
   if(res.data.code === 200){
-    const params = {
-      currentPage: currentPage.value,
-      pageSize: pageSize.value
-    }
-    await getUsersForAdmin(params)
+    trigSearch()
   }else{
     ElMessage.error("网络繁忙")
   }
@@ -524,11 +523,7 @@ const freezeUserByUserId =async(row) => {
 const freezeUserByUserIdForDetail =async(row) => {
   const res = await freezeUser(row.id)
   if(res.data.code === 200){
-    const params = {
-      currentPage: currentPage.value,
-      pageSize: pageSize.value
-    }
-    await getUsersForAdmin(params)
+    trigSearch()
     userDetail.value.isUserFreeze =1
   }else{
     ElMessage.error("网络繁忙")
@@ -538,11 +533,7 @@ const freezeUserByUserIdForDetail =async(row) => {
 const unFreezeUserByUserId =async(row) => {
   const res = await unFreezeUser(row.id)
   if(res.data.code === 200){
-    const params = {
-      currentPage: currentPage.value,
-      pageSize: pageSize.value
-    }
-    await getUsersForAdmin(params)
+    trigSearch()
   }else{
     ElMessage.error("网络繁忙")
   }
@@ -551,33 +542,57 @@ const unFreezeUserByUserId =async(row) => {
 const unFreezeUserByUserIdForDetail =async(row) => {
   const res = await unFreezeUser(row.id)
   if(res.data.code === 200){
-    const params = {
-      currentPage: currentPage.value,
-      pageSize: pageSize.value
-    }
-    await getUsersForAdmin(params)
+    trigSearch()
     userDetail.value.isUserFreeze = 0
   }else{
     ElMessage.error("网络繁忙")
   }
 }
 
-// 提交修改
-const submitToxicEdit = () => {
-  // 1. 如果选择“无风险”，自动清空类别
-  if (toxicForm.value.isToxic === 0) {
-    toxicForm.value.mulType = '';
-  } else {
-    // 2. 将数组转回逗号分隔字符串
-    toxicForm.value.mulType = selectedMulTypes.value.join(',');
+const currentEditType = ref('comment')
+
+const submitToxicEdit = async () => {
+  // 转换数据格式
+  const mulTypeStr = toxicForm.value.isToxic === 0 ? '' : selectedMulTypes.value.join(',');
+
+  const payload = {
+    id: toxicForm.value.id,
+    isToxic: toxicForm.value.isToxic,
+    mulType: mulTypeStr
+  };
+
+  try {
+    let res;
+    if (currentEditType.value === 'comment') {
+      res = await updateCommentToxic(payload);
+    } else {
+      res = await updateReplyToxic(payload);
+    }
+
+    if (res.data.code === 200) {
+      ElMessage.success('审核判定已更新');
+      editToxicVisible.value = false;
+
+      const res = await getUserDetail(currentUserId.value)
+      if(res.data.code === 200 ){
+        userDetail.value = res.data.data
+        comRepList.value = res.data.data.userComRepVOList
+      }else{
+        ElMessage.error("网络繁忙")
+        return;
+      }
+      // 2. 关键：等待 DOM 更新
+      await nextTick()
+
+      // 3. 此时 ref 已经绑定到真实的 DOM 元素上了
+      initUserChart(userDetail.value.blog12MonthDTO)
+    } else {
+      ElMessage.error(res.data.msg || '操作失败');
+    }
+  } catch (error) {
+    console.error(error);
+    ElMessage.error('系统异常');
   }
-
-  console.log('提交给后端的 DTO:', toxicForm.value);
-
-  // TODO: 调用后端接口
-
-  ElMessage.success('审核判定已更新');
-  editToxicVisible.value = false;
 };
 
 const getUsersForAdmin = async (params) => {
@@ -598,6 +613,12 @@ const getUsersForAdmin = async (params) => {
   }
 
 };
+
+const trigSearch=()=> {
+  dataTableRef.value?.handleSearch()
+}
+
+const dataTableRef = ref(null)
 
 onMounted(async() => {
   const params = {

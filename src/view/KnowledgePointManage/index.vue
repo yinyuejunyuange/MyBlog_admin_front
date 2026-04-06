@@ -12,7 +12,7 @@
       v-model:current-page="currentPage"
   >
     <template #relatedQuestions="{value}">
-      {{value.size || 0}}
+      {{value.length || 0}}
     </template>
 
     <template #recommendedAnswer="{value}">

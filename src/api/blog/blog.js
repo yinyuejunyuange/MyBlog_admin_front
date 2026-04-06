@@ -133,5 +133,20 @@ export const updateReplyStatus = async (replyId, status) => {
 }
 
 
+/**
+ * 修改评论攻击性是否可见
+ */
+export const updateCommentToxic = async (data) => {
+    return await request.put('/blog/admin/updateCommentToxic',data)
+}
+
+/**
+ * 修改评论攻击性是否可见
+ */
+export const updateReplyToxic = async (data) => {
+    return await request.put('/blog/admin/updateReplyToxic',data)
+}
+
+
 
 
