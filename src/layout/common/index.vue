@@ -150,8 +150,8 @@ const handleUpdatePassword = async () => {
 const logOut = async () => {
   await userLogout()
   localStorage.clear()
-  router.push({
-    name: "LoginPage"
+  await router.push({
+    name: ""
   })
 }
 

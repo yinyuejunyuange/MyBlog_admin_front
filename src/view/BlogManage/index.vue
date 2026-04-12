@@ -35,8 +35,9 @@
     <template #actions="{ row }">
       <el-button link type="primary" size="small" @click="previewBlog(row)">博客预览</el-button>
       <el-button link type="primary" size="small" @click="openDialog(row)">详情</el-button>
-      <el-button v-if="row.status === 4" link type="success" size="small" @click="unFreezeBlog(row)">解封</el-button>
-      <el-button v-else-if="row.status === 2" link type="danger" size="small" @click="freezeBlog(row)">封禁</el-button>
+      <el-button v-if="row.status === 4 || row.status === 3 " link type="success" size="small" @click="unFreezeBlog(row)"> {{ row.status === 3 ? '通过':'解封' }} </el-button>
+      <el-button v-else-if="row.status === 2 || row.status === 3 " link type="danger" size="small" @click="freezeBlog(row)">{{ row.status === 3 ? '驳回':'封禁' }}</el-button>
+      <el-button v-if="row.status === 3 " link type="danger" size="small" @click="freezeBlog(row)">驳回</el-button>
     </template>
   </DataTable>
 
@@ -205,7 +206,7 @@ import 'md-editor-v3/lib/preview.css';
 import { ArrowLeft, Calendar, ChatDotRound, Share } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import {blogsForAdmin, monthlyBehaviorTrend, readBlog, updateBlogStatus} from "@/api/blog/blog.js";
-import {ElMessage} from "element-plus";
+import {ElMessage, ElMessageBox} from "element-plus";
 
 // 1. 定义搜索框配置
 const mySearchConfig = [
@@ -224,7 +225,8 @@ const mySearchConfig = [
     type: 'select',
     options: [
       { label: '保存中', value: 1 },
-      { label: '已发布', value: 3 },
+      { label: '已发布', value: 2 },
+      { label: '审核中', value: 3 },
       { label: '封禁', value: 4 },
     ]
   },
@@ -470,18 +472,38 @@ const getMonthlyBehaviorTrend = async(row) => {
   }
 }
 
-const freezeBlog = async(row) => {
-  const res = await updateBlogStatus(row.id,4)
-  if(res.data.code === 200 ){
-    await onSearch()
-   //await getBlogsForAdmin({currentPage:currentPage.value, pageSize: pageSize.value})
-  }else{
-    ElMessage.error("网络繁忙")
-  }
+
+// ... 其他代码
+
+const freezeBlog = (row) => {
+  ElMessageBox.prompt('请输入封禁该博客的理由', '确认封禁', {
+    confirmButtonText: '确定封禁',
+    cancelButtonText: '取消',
+    inputPlaceholder: '违反社区规范/内容违规等...',
+    inputPattern: /\S+/, // 正则：不能为空
+    inputErrorMessage: '封禁理由不能为空',
+    type: 'warning',
+  })
+      .then(async ({ value }) => {
+        // value 就是用户输入的理由
+        // 假设你的接口 updateBlogStatus 支持传入理由，这里可以作为第三个参数
+        // 如果接口不支持，通常是需要联系后端在 updateBlogStatus 里增加这个字段
+        const res = await updateBlogStatus(row.id, 4, value)
+
+        if (res.data.code === 200) {
+          ElMessage.success('封禁成功')
+          await onSearch()
+        } else {
+          ElMessage.error(res.data.msg || "操作失败")
+        }
+      })
+      .catch(() => {
+        // 用户点击取消或关闭弹窗
+      })
 }
 
 const unFreezeBlog = async(row) => {
-  const res = await updateBlogStatus(row.id,2)
+  const res = await updateBlogStatus(row.id,1)
   if(res.data.code === 200 ){
     await onSearch()
     // await getBlogsForAdmin({currentPage: currentPage.value, pageSize: pageSize.value})

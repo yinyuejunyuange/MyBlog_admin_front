@@ -34,11 +34,12 @@ export const monthlyBehaviorTrend = async (blogId) => {
  * 博客管理 -- 修改博客状态
  * @returns {Promise<axios.AxiosResponse<any>>}
  */
-export const updateBlogStatus = async (blogId,status) => {
+export const updateBlogStatus = async (blogId,status,reason) => {
     return await request.put('/blog/admin/updateBlogStatus',null,{
         params: {
             blogId: blogId,
-            status: status
+            status: status,
+            reason: reason
         }
     })
 }

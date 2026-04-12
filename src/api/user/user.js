@@ -33,10 +33,12 @@ export const getUserDetail = async (userId) => {
  * 博客管理 -- 冻结用户
  * @returns {Promise<axios.AxiosResponse<any>>}
  */
-export const freezeUser = async (userId) => {
+export const freezeUser = async (userId,type,reason) => {
     return await request.put('/admin/freezeUser',null,{
         params: {
-            userId: userId
+            userId: userId,
+            type: type,
+            reason: reason
         }
     })
 }

@@ -50,7 +50,7 @@
 
       <div class="glass-card-inner p-8 flex flex-col md:flex-row gap-8 items-center">
         <div class="relative">
-          <el-avatar :size="100" :src="userDetail.userHead" class="shadow-xl border-4 border-white" />
+          <el-avatar :size="100" :src=" imagePrefix+ userDetail.userHead" class="shadow-xl border-4 border-white" />
           <div
               v-if="userDetail.isUserFreeze === 1"
               class="absolute -bottom-2 -right-2 bg-red-500 text-white text-[10px] px-2 py-1 rounded-full shadow-lg"
@@ -97,7 +97,7 @@
       <div class="glass-card-inner p-6">
         <div class="flex items-center gap-2 mb-6">
           <div class="w-1.5 h-4 bg-indigo-500 rounded-full"></div>
-          <span class="font-bold text-slate-700">近12个作品发布情况</span>
+          <span class="font-bold text-slate-700">近12个月作品发布情况</span>
         </div>
         <div ref="userCreationChartRef" class="w-full h-[320px]"></div>
       </div>
@@ -204,7 +204,41 @@
       </div>
     </template>
   </el-dialog>
-
+  <el-dialog
+      v-model="freezeDialogVisible"
+      title="账号冻结处理"
+      width="400px"
+      append-to-body
+  >
+    <div class="p-4">
+      <el-form label-position="top">
+        <el-form-item label="请选择冻结时长">
+          <el-radio-group v-model="freezeDuration" >
+            <el-radio :label="1">冻结 1 小时</el-radio>
+            <el-radio :label="2">冻结 1 周 (168小时)</el-radio>
+            <el-radio :label="3">冻结 1 个月 (720小时)</el-radio>
+            <el-radio >永久封禁 (不定时)</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="冻结原因" required>
+          <el-input
+              v-model="freezeReason"
+              type="textarea"
+              :rows="3"
+              placeholder="请输入违规详情（如：发布垃圾广告、言语攻击等）"
+              maxlength="200"
+              show-word-limit
+          />
+        </el-form-item>
+      </el-form>
+    </div>
+    <template #footer>
+      <div class="flex justify-end gap-2">
+        <el-button @click="freezeDialogVisible = false">取消</el-button>
+        <el-button type="danger" @click="confirmFreeze">确认冻结</el-button>
+      </div>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup>
@@ -510,26 +544,79 @@ const openEditToxic = (row) => {
   editToxicVisible.value = true;
 };
 
+// --- 状态变量 ---
+const freezeDialogVisible = ref(false);
+const freezeDuration = ref(null);
+const freezeReason = ref(''); // 新增：冻结原因
+const targetFreezeId = ref(null);
+const isFromDetail = ref(false);
+
+
 // 冻结用户
-const freezeUserByUserId =async(row) => {
-  const res = await freezeUser(row.id)
-  if(res.data.code === 200){
-    trigSearch()
-  }else{
-    ElMessage.error("网络繁忙")
-  }
-}
+// const freezeUserByUserId =async(row) => {
+//   const res = await freezeUser(row.id)
+//   if(res.data.code === 200){
+//     trigSearch()
+//   }else{
+//     ElMessage.error("网络繁忙")
+//   }
+// }
 
-const freezeUserByUserIdForDetail =async(row) => {
-  const res = await freezeUser(row.id)
-  if(res.data.code === 200){
-    trigSearch()
-    userDetail.value.isUserFreeze =1
-  }else{
-    ElMessage.error("网络繁忙")
-  }
-}
+// const freezeUserByUserIdForDetail =async(row) => {
+//   const res = await freezeUser(row.id)
+//   if(res.data.code === 200){
+//     trigSearch()
+//     userDetail.value.isUserFreeze =1
+//   }else{
+//     ElMessage.error("网络繁忙")
+//   }
+// }
+// --- 打开弹窗逻辑 ---
+const openFreezeModal = (id, fromDetail = false) => {
+  targetFreezeId.value = id;
+  isFromDetail.value = fromDetail;
+  freezeDuration.value = null;
+  freezeReason.value = '';  // 重置理由
+  freezeDialogVisible.value = true;
+};
 
+// 表格中的冻结按钮
+const freezeUserByUserId = (row) => openFreezeModal(row.id, false);
+
+// 详情页中的冻结按钮
+const freezeUserByUserIdForDetail = (row) => openFreezeModal(row.id, true);
+
+// --- 提交冻结 ---
+const confirmFreeze = async () => {
+  // 校验
+  if (!freezeReason.value.trim()) {
+    return ElMessage.warning('请输入冻结原因');
+  }
+
+  try {
+    // 调用接口，传入 ID、时长和原因
+    const res = await freezeUser(
+        targetFreezeId.value,
+        freezeDuration.value,
+        freezeReason.value
+    );
+
+    if (res.data.code === 200) {
+      ElMessage.success('该账号已被成功冻结');
+      freezeDialogVisible.value = false;
+
+      trigSearch(); // 刷新主表
+
+      if (isFromDetail.value) {
+        userDetail.value.isUserFreeze = 1; // 同步详情页状态
+      }
+    } else {
+      ElMessage.error(res.data.msg || "操作失败");
+    }
+  } catch (error) {
+    ElMessage.error("系统异常");
+  }
+};
 const unFreezeUserByUserId =async(row) => {
   const res = await unFreezeUser(row.id)
   if(res.data.code === 200){

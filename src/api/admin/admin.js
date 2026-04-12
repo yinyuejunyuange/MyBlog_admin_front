@@ -72,10 +72,12 @@ export const unFreezeAdmin = async (userId) => {
  * 博客管理 -- 冻结
  * @returns {Promise<axios.AxiosResponse<any>>}
  */
-export const freezeAdmin = async (userId) => {
+export const freezeAdmin = async (userId,type,reason) => {
     return await request.put('/admin/freezeAdmin',null,{
         params: {
-            userId: userId
+            userId: userId,
+            type: type,
+            reason: reason
         }
     })
 }

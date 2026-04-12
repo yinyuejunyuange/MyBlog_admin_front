@@ -8,6 +8,7 @@ const request = axios.create({
     baseURL:import.meta.env.VITE_API_BASE_URL,
     // 超时时间
     timeout: 30000,
+    validateStatus: () => true  // 将所有异常请求都放行
 })
 
 // ===================== 核心：添加请求拦截器 =====================
@@ -44,7 +45,6 @@ request.interceptors.response.use(
     // 响应失败的处理
     (error) => {
         console.error('请求失败：', error)
-        // 扩展： todo 当用户token失效时跳转重新登录
         return Promise.reject(error)
     }
 )
