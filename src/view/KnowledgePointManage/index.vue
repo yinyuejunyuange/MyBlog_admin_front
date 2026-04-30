@@ -31,42 +31,135 @@
       <el-button link type="danger" size="small" @click="deleteKnowledgePoint(row)">删除</el-button>
     </template>
   </DataTable>
+
+
   <el-dialog v-model="visible" title="知识点详情管理" width="80%" class="glass-dialog">
     <el-tabs v-model="activeTab">
 
-      <el-tab-pane label="核心内容" name="content">
-        <el-form :model="formData" label-position="top" class="p-2">
-          <div class="grid grid-cols-2 gap-4">
-            <el-form-item label="知识点标题" class="col-span-1">
-              <el-input v-model="formData.title" placeholder="输入标题" />
-            </el-form-item>
-
-            <el-form-item label="难度级别" class="col-span-1">
-              <el-select v-model="formData.level" placeholder="请选择难度" class="w-full">
-                <el-option label="简单" value="简单"/>
+      <el-tab-pane label="核心内容" name="content" class="py-6">
+        <el-form :model="formData" label-position="top">
+          <div class="grid grid-cols-12 gap-8 mb-8">
+            <div class="col-span-12 md:col-span-8">
+              <label class="block text-sm font-bold text-slate-700 mb-2 ml-1">知识点标题</label>
+              <el-input
+                  v-model="formData.title"
+                  placeholder="输入一个具有吸引力的标题..."
+                  class="!rounded-lg shadow-sm"
+                  size="large"
+              />
+            </div>
+            <div class="col-span-12 md:col-span-4">
+              <label class="block text-sm font-bold text-slate-700 mb-2 ml-1">难度级别</label>
+              <el-select v-model="formData.level" class="w-full" size="large">
+                <el-option label="简单" value="简单" />
                 <el-option label="中等" value="中等" />
                 <el-option label="困难" value="困难" />
               </el-select>
-            </el-form-item>
-            <el-form-item label="推荐回答" class="col-span-2">
-              <el-input v-model="formData.recommendedAnswer" type="textarea" :rows="15" />
-            </el-form-item>
+            </div>
           </div>
 
-          <div class="mt-6">
-            <div class="flex justify-between items-center mb-4">
-              <span class="text-sm font-bold text-slate-500">常见面试问答 (InterviewQuestionsDTO)</span>
-              <el-button type="primary" size="small" @click="addInterviewItem">+ 新增问答</el-button>
+          <!-- ========= 编辑器 ========= -->
+          <div class="flex-1 h-[400px] px-4 pt-4">
+            <MdEditor
+                v-model="formData.recommendedAnswer"
+                :theme="theme"
+                :toolbars="toolbars"
+                @on-upload-img="onUploadImg"
+                style="height: 100%"
+            />
+          </div>
+
+          <!-- ========= 底部栏 ========= -->
+          <!-- 底部固定栏 -->
+          <div
+              class="flex items-center justify-between h-16 px-6 bg-white border-t border-gray-200 shadow-sm"
+          >
+            <!-- 左侧：Markdown 提示 -->
+            <el-popover
+                placement="top-start"
+                :width="260"
+                trigger="hover"
+            >
+              <div class="text-xs text-gray-700 space-y-1 leading-relaxed">
+                <div><code># 标题</code>：一级标题</div>
+                <div><code>## 标题</code>：二级标题</div>
+                <div><code>**加粗**</code>：文本加粗</div>
+                <div><code>*斜体*</code>：文本斜体</div>
+                <div><code>`代码`</code>：行内代码</div>
+                <div><code>```</code>：代码块</div>
+                <div><code>- 列表</code>：无序列表</div>
+                <div><code>[文本](链接)</code>：超链接</div>
+                <div class="pt-2 mt-2 border-t text-gray-500">
+                  常用标签
+                </div>
+              </div>
+
+              <template #reference>
+                <span class="text-sm text-gray-600 cursor-help select-none">
+                  📘 Markdown 语法规则
+                </span>
+              </template>
+            </el-popover>
+          </div>
+
+          <div class="border-t border-slate-100 pt-8 mt-4">
+            <div class="flex items-center justify-between mb-6">
+              <div>
+                <h3 class="text-base font-bold text-slate-800">常见面试问答</h3>
+                <p class="text-xs text-slate-500 mt-0.5">该知识点下关联的典型面试题库</p>
+              </div>
+              <el-button
+                  type="primary"
+                  class="!rounded-full !px-5 !bg-indigo-600 hover:!bg-indigo-700 border-none shadow-md shadow-indigo-100"
+                  @click="addInterviewItem"
+              >
+                + 新增问答
+              </el-button>
             </div>
-            <div v-for="(item, index) in formData.relatedQuestions" :key="index"
-                 class="mb-4 p-4 rounded-xl border border-dashed border-slate-300 bg-white/30 relative group">
-              <el-button type="danger" link class="absolute top-2 right-2 opacity-0 group-hover:opacity-100" @click="formData.relatedQuestions.splice(index,1)">删除</el-button>
-              <el-form-item label="问" dense>
-                <el-input v-model="item.title" size="small" />
-              </el-form-item>
-              <el-form-item label="答" dense class="!mb-0">
-                <el-input v-model="item.answer" type="textarea" :rows="8" size="small" />
-              </el-form-item>
+
+            <div class="grid grid-cols-1 gap-4">
+              <div
+                  v-for="(item, index) in formData.relatedQuestions"
+                  :key="index"
+                  class="group relative bg-slate-50 rounded-2xl border border-slate-200 p-5 transition-all duration-200 hover:bg-white hover:shadow-xl hover:shadow-slate-200/50"
+              >
+                <div
+                    class="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                    @click="formData.relatedQuestions.splice(index,1)"
+                >
+                  <div class="bg-red-500 text-white p-1.5 rounded-full cursor-pointer shadow-lg hover:scale-110 transition-transform">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </div>
+                </div>
+
+                <div class="flex flex-col space-y-4">
+                  <div class="flex items-center">
+                    <span class="flex-none w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-xs mr-3">Q</span>
+                    <el-input
+                        v-model="item.title"
+                        placeholder="请输入面试题目"
+                        variant="unstyled"
+                        class="border-b border-slate-200 focus:border-indigo-500 transition-colors"
+                    />
+                  </div>
+                  <div class="flex items-start">
+                    <span class="flex-none w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-xs mr-3">A</span>
+                    <el-input
+                        v-model="item.answer"
+                        type="textarea"
+                        :rows="3"
+                        placeholder="请输入参考回答内容"
+                        class="!bg-transparent"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="!formData.relatedQuestions?.length" class="text-center py-10 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 text-sm">
+              暂无面试问答，点击上方按钮开始添加
             </div>
           </div>
         </el-form>
@@ -157,7 +250,8 @@
 
 <script setup>
 import DataTable from "@/components/common/DataTable/index.vue";
-import {onMounted, reactive, ref} from "vue";
+import {onMounted, reactive, ref, watch} from "vue";
+import 'md-editor-v3/lib/style.css'
 import {
   add, commentsAdmin, commentUnVisible, commentVisible,
   deletePoint,
@@ -169,6 +263,7 @@ import {
 import {ElMessage} from "element-plus";
 import {getCommentForAdmin} from "@/api/blog/blog.js";
 import {questionPageListForSelect} from "@/api/question/question.js";
+import { MdEditor } from 'md-editor-v3'
 
 const currentPage = ref(1)
 const pageSize = ref(10)
@@ -221,6 +316,7 @@ const commentTotal = ref(0)
 
 
 const visible = ref(false)
+const MD_visible = ref(false)
 const activeTab = ref('content')
 const selectDialogVisible = ref(false)
 
@@ -240,6 +336,65 @@ const formData = ref({
   level: '',
   relatedQuestions: [], // InterviewQuestionsDTO 列表
 })
+
+const isDark = ref(false)
+
+const theme = ref(isDark.value ? 'dark' : 'light')
+
+watch(isDark, () => {
+  theme.value = isDark.value ? 'dark' : 'light'
+})
+
+// ---------- 5. 工具栏 ----------
+const toolbars = ref([
+  'revoke',
+  'next',
+  '-',
+  'bold',
+  'underline',
+  'italic',
+  'strikeThrough',
+  '-',
+  'title',
+  'sub',
+  'sup',
+  'quote',
+  'unorderedList',
+  'orderedList',
+  'task',
+  'codeRow',
+  'code',
+  '-',
+  'link',
+  'image',
+  'table',
+  'mermaid',
+  'katex',
+  '-',
+  0,
+  1,
+  2,
+  '=',
+  'save',
+  'prettier',
+  'pageFullscreen',
+  'catalog',
+  'preview',
+  'previewOnly',
+  'htmlPreview',
+  'github'
+])
+const onUploadImg = async (files, callback) => {
+  const formData = new FormData()
+  formData.append('file', files[0])
+
+  const res = await uploadBlogImage(formData)
+  if (res.data.code === 200) {
+    callback([
+      `${import.meta.env.VITE_API_BASE_URL}user/getHead/${res.data.data}`
+    ])
+  }
+}
 
 // 2. 已关联的 QuestionDTO 列表
 const linkedQuestions = ref([])
