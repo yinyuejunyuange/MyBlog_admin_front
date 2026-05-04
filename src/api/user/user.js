@@ -8,8 +8,8 @@ export const usersForAdmin = async (userName,startDate, endDate ,isUserFreeze, c
     return await request.get('/admin/userPage',{
         params: {
             userName: userName,
-            startDate: startDate,
-            endDate: endDate,
+            startTime: startDate,
+            endTime: endDate,
             isUserFreeze: isUserFreeze,
             currentPage: currentPage,
             pageSize: pageSize

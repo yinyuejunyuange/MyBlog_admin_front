@@ -277,15 +277,7 @@ const questionSelectTotal = ref(0)
 
 const mySearchConfig = [
   { label: '知识点名称', prop: 'search', type: 'input', placeholder: '搜索关键词...' },
-  {
-    label: '知识库来源',
-    prop: 'baseId',
-    type: 'select',
-    options: [
-      { label: 'JAVA高频面试题', value: 123123 },
-      { label: '后端高频面试题', lue: 123123123 },
-    ]
-  },
+
 ]
 
 const knowledgeBaseColumns = [

@@ -55,6 +55,12 @@ export const adminPage = async (userName,startDate, endDate ,isUserFreeze, curre
         }
     })
 }
+/**
+ * 博客管理 -- 获取用户角色信息
+ */
+export const userRoles = async () => {
+    return await request.get('/admin/userRoles')
+}
 
 /**
  * 博客管理 -- 解冻

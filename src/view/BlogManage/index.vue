@@ -52,8 +52,8 @@
         <div class="glass-card p-8">
           <div class="flex flex-wrap items-center gap-6 text-sm text-slate-500 mb-6">
             <div class="flex items-center gap-2">
-              <el-avatar :size="24" src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" />
-              <span class="font-medium text-slate-700">{{ previewRow.userName }}</span>
+              <span class="font-bold ">作者：</span>
+              <span class="font-bold text-[20px]">{{ previewRow.userName }}</span>
             </div>
 <!--            <div class="flex items-center gap-1">-->
 <!--              <el-icon><Calendar /></el-icon>-->
@@ -122,8 +122,7 @@
 
           <el-form-item label="作者信息">
             <div class="flex items-center gap-2">
-              <el-avatar :size="24" class="bg-indigo-100 text-indigo-600"> {{ blogData.userName?.charAt(0) }} </el-avatar>
-              <span class="text-slate-600">{{ blogData.userName }} <small class="text-slate-400">(ID: {{ blogData.userId }})</small></span>
+              <span class="font-bold text-[15px]">{{ blogData.userName }} <small class="text-slate-400">(ID: {{ blogData.userId }})</small></span>
             </div>
           </el-form-item>
 

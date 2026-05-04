@@ -151,7 +151,7 @@ const logOut = async () => {
   await userLogout()
   localStorage.clear()
   await router.push({
-    name: ""
+    name: "LoginPage"
   })
 }
 

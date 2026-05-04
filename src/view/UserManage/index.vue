@@ -685,8 +685,8 @@ const submitToxicEdit = async () => {
 const getUsersForAdmin = async (params) => {
   console.log(params)
   const res =  await usersForAdmin(params.userName,
-      params.startDate,
-      params.endDate,
+      params.startTime,
+      params.endTime,
       params.isUserFreeze,
       params.currentPage,
       params.pageSize

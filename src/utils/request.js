@@ -2,6 +2,7 @@
  * 配置同一的请求地址
  */
 import axios from 'axios'
+import {ElMessage, ElNotification} from "element-plus";
 
 const request = axios.create({
     // 基础地址
@@ -36,11 +37,41 @@ request.interceptors.request.use(
 request.interceptors.response.use(
     // 响应成功的处理（只返回data，简化业务代码）
     (response) => {
-        const {data} = response
-        if(data.code === 401){
-            localStorage.clear()
+        const { data, config, headers } = response
+
+        if (
+            config.responseType === 'blob' ||
+            config.responseType === 'arraybuffer'
+        ) {
+            return response
         }
-        return response  // 将响应全部放回
+
+        const contentType = headers['content-type']
+        if (contentType && contentType.includes('application/octet-stream')) {
+            return response
+        }
+
+        if (data && typeof data === 'object' && 'code' in data) {
+
+            if (data.code !== 200) {
+
+                ElNotification({
+                    title: "警告",
+                    type: "warning",
+                    message: data.message,
+                    position: 'bottom-right',
+                })
+                if (data.code === 401) {
+                    localStorage.clear()
+                    window.location.reload();
+                }
+            }
+
+
+            return response
+        }
+
+        return response
     },
     // 响应失败的处理
     (error) => {

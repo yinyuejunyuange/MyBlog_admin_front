@@ -41,7 +41,7 @@
         <span>题目管理</span>
       </el-menu-item>
 
-      <el-menu-item index="AdminManage" @click="goView('AdminManage')">
+      <el-menu-item index="AdminManage" v-if="roles.includes('superAdmin')"  @click="goView('AdminManage')">
         <el-icon><Setting /></el-icon>
         <span>管理员管理</span>
       </el-menu-item>
@@ -49,8 +49,8 @@
   </el-scrollbar>
 </template>
 
-<script setup lang="ts">
-import { computed } from 'vue' // 引入 computed
+<script setup >
+import {computed, onMounted, ref} from 'vue' // 引入 computed
 import {
   DataAnalysis,
   EditPen,
@@ -60,6 +60,9 @@ import {
   Folder, Reading
 } from "@element-plus/icons-vue";
 import { useRoute, useRouter } from "vue-router";
+import{
+  userRoles
+} from "@/api/admin/admin"
 
 const route = useRoute()
 const router = useRouter()
@@ -67,12 +70,24 @@ const router = useRouter()
 // 核心逻辑：监听当前路由的名字
 // 这样无论刷新还是跳转，activeMenu 永远等于当前页面的路由 name
 const activeMenu = computed(() => {
-  return route.name as string
+  return route.name
 })
 
-const goView = (viewName: string) => {
+const roles = ref([])
+const getUserRoles = async() => {
+  const res = await userRoles()
+  if(res.data.code === 200){
+    roles.value = res.data.data
+  }
+}
+
+const goView = (viewName) => {
   router.push({
     name: viewName
   })
 }
+
+onMounted(async() => {
+  await getUserRoles()
+})
 </script>
