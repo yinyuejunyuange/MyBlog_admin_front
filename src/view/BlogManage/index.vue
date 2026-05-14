@@ -225,6 +225,7 @@ const mySearchConfig = [
     options: [
       { label: '保存中', value: 1 },
       { label: '已发布', value: 2 },
+      { label: '待发布', value: 5},
       { label: '审核中', value: 3 },
       { label: '封禁', value: 4 },
     ]
@@ -251,7 +252,8 @@ const statusMap = {
   1: "保存中",
   2: "发布",
   3: "审核中",
-  4: "禁止查看"
+  4: "禁止查看",
+  5: "待发布"
 }
 
 const mdPreviewDialogVisible = ref(false)
