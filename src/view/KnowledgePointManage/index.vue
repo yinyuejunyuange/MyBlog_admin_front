@@ -220,6 +220,7 @@
           :search-schema="questionSearchSchema"
           :show-page="true"
           @search="getAllQuestionForSelect"
+          @page-change="getAllQuestionForSelect"
           :total="questionSelectTotal"
           v-model:current-page="questionCurrentPage"
           v-model:page-size="questionPageSize"
@@ -250,7 +251,7 @@
 
 <script setup>
 import DataTable from "@/components/common/DataTable/index.vue";
-import {onMounted, reactive, ref, watch} from "vue";
+import {nextTick, onMounted, reactive, ref, watch} from "vue";
 import 'md-editor-v3/lib/style.css'
 import {
   add, commentsAdmin, commentUnVisible, commentVisible,
@@ -408,6 +409,21 @@ const getAllQuestionForSelect = async(params) =>{
   if(res.data.code === 200 ){
     allQuestionPool.value = res.data.data.records
     questionSelectTotal.value = res.data.data.total
+    selectedIds.value=[]
+
+    const params2 = {
+      knowledgePointId: selectPointRow.value.id,
+      currentPage: questionCurrentPage.value,
+      pageSize: questionPageSize.value
+    }
+    // 执行一遍 试题的相关查询
+    const resQ = await questionList(params2.knowledgePointId,params2.currentPage,params2.pageSize)
+    if(resQ.data.code === 200){
+      linkedQuestions.value = resQ.data.data.records
+      questionTotal.value = resQ.data.data.total
+    }else{
+      ElMessage.error("网络繁忙")
+    }
   }
 }
 
@@ -519,9 +535,9 @@ const visibleMap={
 const openDetail = async(row) => {
   visible.value = true
   isEdit.value = true
-
-  await getPointDetailInfo(row)
   selectPointRow.value = row
+  await nextTick() // 确保异步完成
+  await getPointDetailInfo(row)
 }
 
 const openAdd = () =>{

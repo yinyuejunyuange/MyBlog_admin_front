@@ -5,7 +5,7 @@
       :table-data="listData"
       :show-add="true"
       @search="getQuestionPageList"
-      @page-chang="getQuestionPageList"
+      @page-change="getQuestionPageList"
       @add="openAdd"
       v-model:current-page="currentPage"
       v-model:page-size="pageSize"
@@ -203,7 +203,7 @@ const listData = ref([])
 const visible = ref(false)
 const singleSelectedValue = computed({
   get() {
-    return formData.value.answer?.[0] || ''
+    return formData.value.answer?.[0] || '暂无'
   },
   set(val) {
     formData.value.answer = [val]
